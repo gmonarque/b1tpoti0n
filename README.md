@@ -95,6 +95,8 @@ See [DOCUMENTATION.md](DOCUMENTATION.md) for complete documentation including:
 
 A standalone admin interface is available at `admin-ui/index.html`.
 
+[**Live Demo**](https://gmonarque.github.io/b1tpoti0n/) — UI preview (not connected to a tracker)
+
 ## Tests
 
 ```bash

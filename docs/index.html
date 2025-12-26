@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>b1tpoti0n Admin — Demo</title>
+  <link rel="stylesheet" href="admin.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="admin.js"></script>
+</head>
+<body>
+  <div style="background: linear-gradient(90deg, #1a1a2e, #16213e); color: #fff; text-align: center; padding: 0.5rem; font-size: 0.85rem;">
+    This is a UI demo — <a href="https://github.com/gmonarque/b1tpoti0n" style="color: #4fc3f7;">View on GitHub</a>
+  </div>
+  <header x-data>
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <img src="logo.png" alt="b1tpoti0n" class="header-logo">
+      <div class="status-indicator" :class="$store.app.connected ? 'connected' : 'disconnected'">
+        <span class="status-dot"></span>
+        <span x-text="$store.app.connected ? 'Connected' : 'Disconnected'"></span>
+      </div>
+    </div>
+    <div class="config">
+      <input type="text" x-model="config.apiUrl" placeholder="API URL">
+      <input type="password" x-model="config.adminToken" placeholder="Admin Token">
+      <button @click="$store.app.connect()">Connect</button>
+    </div>
+  </header>
+
+  <main x-data>
+    <nav>
+      <button :class="{ active: $store.app.section === 'stats' }" @click="$store.app.showSection('stats')">Dashboard</button>
+      <button :class="{ active: $store.app.section === 'users' }" @click="$store.app.showSection('users')">Users</button>
+      <button :class="{ active: $store.app.section === 'torrents' }" @click="$store.app.showSection('torrents')">Torrents</button>
+      <button :class="{ active: $store.app.section === 'whitelist' }" @click="$store.app.showSection('whitelist')">Whitelist</button>
+      <button :class="{ active: $store.app.section === 'bans' }" @click="$store.app.showSection('bans')">IP Bans</button>
+      <button :class="{ active: $store.app.section === 'ratelimits' }" @click="$store.app.showSection('ratelimits')">Rate Limits</button>
+      <button :class="{ active: $store.app.section === 'snatches' }" @click="$store.app.showSection('snatches')">Snatches</button>
+      <button :class="{ active: $store.app.section === 'hnr' }" @click="$store.app.showSection('hnr')">Hit-and-Run</button>
+      <button :class="{ active: $store.app.section === 'bonus' }" @click="$store.app.showSection('bonus')">Bonus Points</button>
+      <button :class="{ active: $store.app.section === 'swarms' }" @click="$store.app.showSection('swarms')">Swarms</button>
+      <button :class="{ active: $store.app.section === 'system' }" @click="$store.app.showSection('system')">System</button>
+    </nav>
+
+    <div class="content">
+      <!-- Dashboard -->
+      <div class="section" :class="{ active: $store.app.section === 'stats' }" x-data="dashboardData()" x-init="load()">
+        <h2>Dashboard</h2>
+        <p class="section-desc">Overview of tracker statistics and quick maintenance actions.</p>
+        <div x-show="loading" class="loading">Loading stats...</div>
+        <div x-show="!loading">
+          <div class="stats-grid">
+            <div class="stat-box clickable" @click="$store.app.showSection('users')"><div class="value" x-text="stats.users || 0"></div><div class="label">Users</div></div>
+            <div class="stat-box clickable" @click="$store.app.showSection('torrents')"><div class="value" x-text="stats.torrents || 0"></div><div class="label">Torrents</div></div>
+            <div class="stat-box clickable" @click="$store.app.showSection('swarms')"><div class="value" x-text="stats.active_swarms || 0"></div><div class="label">Active Swarms</div></div>
+            <div class="stat-box clickable" @click="$store.app.showSection('snatches')"><div class="value" x-text="stats.total_snatches || 0"></div><div class="label">Total Snatches</div></div>
+            <div class="stat-box clickable" @click="$store.app.showSection('hnr')"><div class="value" x-text="stats.hnr_count || 0"></div><div class="label tooltip" data-tip="Users who downloaded but didn't seed back">HnR Violations</div></div>
+            <div class="stat-box clickable" @click="$store.app.showSection('bans')"><div class="value" x-text="stats.active_bans || 0"></div><div class="label">Active Bans</div></div>
+          </div>
+          <div class="card" style="margin-top: 1rem;">
+            <h3>Quick Actions</h3>
+            <div class="action-grid">
+              <div class="action-item">
+                <button class="btn btn-primary" @click="flush()">Flush Stats to DB</button>
+                <span class="action-desc">Write pending stats from memory to database</span>
+              </div>
+              <div class="action-item">
+                <button class="btn btn-primary" @click="hnrCheck()">Run HnR Check</button>
+                <span class="action-desc">Check for users who haven't seeded enough</span>
+              </div>
+              <div class="action-item">
+                <button class="btn btn-primary" @click="calcBonus()">Calculate Bonus</button>
+                <span class="action-desc">Award bonus points to active seeders</span>
+              </div>
+              <div class="action-item">
+                <button class="btn btn-warning" @click="cleanupBans()">Cleanup Expired Bans</button>
+                <span class="action-desc">Remove expired IP bans from database</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Users -->
+      <div class="section" :class="{ active: $store.app.section === 'users' }" x-data="usersData()" x-init="load()">
+        <h2>Users</h2>
+        <p class="section-desc">Manage tracker users, their stats, and permissions.</p>
+        <div class="card">
+          <div class="form-row">
+            <input type="text" x-model="search" placeholder="Search by passkey (min 3 chars)" @keyup.enter="searchUsers()">
+            <button class="btn btn-primary" @click="searchUsers()">Search</button>
+            <button class="btn btn-success" @click="createModal = true">+ New User</button>
+          </div>
+        </div>
+        <div class="card">
+          <div x-show="loading" class="loading">Loading users...</div>
+          <div x-show="!loading && users.length === 0" class="empty-state">
+            <div class="empty-state-icon">&#128100;</div>
+            <div class="empty-state-title">No users found</div>
+            <div class="empty-state-desc">Create a new user or adjust your search.</div>
+          </div>
+          <table x-show="!loading && users.length > 0">
+            <thead>
+              <tr><th>ID</th><th>Passkey</th><th>Uploaded</th><th>Downloaded</th><th>Ratio</th><th>Points</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              <template x-for="u in users" :key="u.id">
+                <tr>
+                  <td x-text="u.id"></td>
+                  <td class="mono" x-text="u.passkey"></td>
+                  <td x-text="formatBytes(u.uploaded)"></td>
+                  <td x-text="formatBytes(u.downloaded)"></td>
+                  <td x-text="ratio(u.uploaded, u.downloaded)"></td>
+                  <td x-text="(u.bonus_points || 0).toFixed(2)"></td>
+                  <td>
+                    <span class="badge" :class="u.can_leech ? 'badge-success' : 'badge-danger'" x-text="u.can_leech ? 'Active' : 'Leech Disabled'"></span>
+                    <span class="badge badge-warning" x-show="u.hnr_warnings > 0" x-text="u.hnr_warnings + ' HnR'"></span>
+                  </td>
+                  <td>
+                    <button class="btn btn-small btn-primary" @click="edit(u.id)">Edit</button>
+                    <button class="btn btn-small btn-warning" @click="resetPasskey(u.id)">Reset Key</button>
+                    <button class="btn btn-small btn-danger" @click="deleteUser(u.id)">Delete</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Create Modal -->
+        <div class="modal" :class="{ active: createModal }">
+          <div class="modal-content">
+            <h3>Create User</h3>
+            <div class="form-row">
+              <label>Passkey (optional):</label>
+              <input type="text" x-model="newPasskey" placeholder="Leave empty for auto-generated">
+            </div>
+            <div class="modal-actions">
+              <button class="btn" @click="createModal = false">Cancel</button>
+              <button class="btn btn-primary" @click="create()">Create</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Edit Modal -->
+        <div class="modal" :class="{ active: editModal }" x-show="editUser">
+          <div class="modal-content">
+            <h3 x-text="'Edit User #' + (editUser?.id || '')"></h3>
+            <div class="form-row"><label>Uploaded:</label><input type="number" x-model="editUser.uploaded"></div>
+            <div class="form-row"><label>Downloaded:</label><input type="number" x-model="editUser.downloaded"></div>
+            <div class="form-row">
+              <label>Can Leech:</label>
+              <select x-model="editUser.can_leech">
+                <option :value="true">Yes</option>
+                <option :value="false">No</option>
+              </select>
+            </div>
+            <hr style="margin: 1rem 0; border-color: var(--bg3);">
+            <button class="btn btn-warning" @click="clearWarnings(editUser.id)">Clear HnR Warnings</button>
+            <div class="modal-actions">
+              <button class="btn" @click="editModal = false">Cancel</button>
+              <button class="btn btn-primary" @click="saveEdit()">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Torrents -->
+      <div class="section" :class="{ active: $store.app.section === 'torrents' }" x-data="torrentsData()" x-init="load()">
+        <h2>Torrents</h2>
+        <p class="section-desc">Registered torrents with <span class="tooltip" data-tip="Freeleech: downloads don't count against ratio">freeleech</span> and multiplier settings.</p>
+        <div class="card">
+          <div class="form-row">
+            <input type="text" x-model="newHash" placeholder="Info hash (40 hex chars)">
+            <button class="btn btn-success" @click="register()">+ Register Torrent</button>
+            <button class="btn btn-primary" @click="load()">Refresh</button>
+          </div>
+        </div>
+        <div class="card">
+          <div x-show="loading" class="loading">Loading torrents...</div>
+          <div x-show="!loading && torrents.length === 0" class="empty-state">
+            <div class="empty-state-icon">&#128190;</div>
+            <div class="empty-state-title">No torrents registered</div>
+            <div class="empty-state-desc">Register a torrent by entering its info hash above.</div>
+          </div>
+          <table x-show="!loading && torrents.length > 0">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Info Hash</th>
+                <th class="tooltip" data-tip="Seeders / Leechers">S/L</th>
+                <th>Completed</th>
+                <th class="tooltip" data-tip="Freeleech: downloads don't count">FL</th>
+                <th>Multipliers</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="t in torrents" :key="t.id">
+                <tr>
+                  <td x-text="t.id"></td>
+                  <td class="mono" x-text="t.info_hash.substring(0,16) + '...'"></td>
+                  <td x-text="t.seeders + '/' + t.leechers"></td>
+                  <td x-text="t.completed"></td>
+                  <td><span class="badge badge-success" x-show="t.freeleech">FL</span><span x-show="!t.freeleech">-</span></td>
+                  <td x-text="'U:' + t.upload_multiplier + 'x D:' + t.download_multiplier + 'x'"></td>
+                  <td>
+                    <button class="btn btn-small btn-primary" @click="edit(t.id)">Edit</button>
+                    <button class="btn btn-small btn-success" x-show="!t.freeleech" @click="toggleFL(t.id, true)">Enable FL</button>
+                    <button class="btn btn-small btn-warning" x-show="t.freeleech" @click="toggleFL(t.id, false)">Disable FL</button>
+                    <button class="btn btn-small btn-danger" @click="deleteTorrent(t.id)">Delete</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Edit Modal -->
+        <div class="modal" :class="{ active: editModal }" x-show="editTorrent">
+          <div class="modal-content">
+            <h3 x-text="'Edit Torrent #' + (editTorrent?.id || '')"></h3>
+            <div class="form-row"><label>Upload Mult:</label><input type="number" x-model="editTorrent.upload_multiplier" step="0.1"></div>
+            <div class="form-row"><label>Download Mult:</label><input type="number" x-model="editTorrent.download_multiplier" step="0.1"></div>
+            <div class="form-row"><label>Seeders:</label><input type="number" x-model="editTorrent.seeders"></div>
+            <div class="form-row"><label>Leechers:</label><input type="number" x-model="editTorrent.leechers"></div>
+            <div class="modal-actions">
+              <button class="btn" @click="editModal = false">Cancel</button>
+              <button class="btn btn-primary" @click="saveEdit()">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Whitelist -->
+      <div class="section" :class="{ active: $store.app.section === 'whitelist' }" x-data="whitelistData()" x-init="load()">
+        <h2>Client Whitelist</h2>
+        <p class="section-desc">Allowed BitTorrent clients. Only clients with matching peer ID prefixes can connect.</p>
+        <div class="card">
+          <div class="form-row">
+            <input type="text" x-model="newPrefix" placeholder="Prefix (e.g. -TR)" style="width: 100px;">
+            <input type="text" x-model="newName" placeholder="Client name (e.g. Transmission)">
+            <button class="btn btn-success" @click="add()">+ Add Client</button>
+          </div>
+        </div>
+        <div class="card">
+          <div x-show="loading" class="loading">Loading whitelist...</div>
+          <div x-show="!loading && items.length === 0" class="empty-state">
+            <div class="empty-state-icon">&#128736;</div>
+            <div class="empty-state-title">No clients whitelisted</div>
+            <div class="empty-state-desc">Add client prefixes to allow specific torrent clients.</div>
+          </div>
+          <table x-show="!loading && items.length > 0">
+            <thead><tr><th>ID</th><th>Prefix</th><th>Name</th><th>Actions</th></tr></thead>
+            <tbody>
+              <template x-for="w in items" :key="w.id">
+                <tr>
+                  <td x-text="w.id"></td>
+                  <td class="mono" x-text="w.prefix"></td>
+                  <td x-text="w.name"></td>
+                  <td><button class="btn btn-small btn-danger" @click="remove(w.prefix)">Remove</button></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- IP Bans -->
+      <div class="section" :class="{ active: $store.app.section === 'bans' }" x-data="bansData()" x-init="load()">
+        <h2>IP Bans</h2>
+        <p class="section-desc">Block IP addresses from accessing the tracker. Bans can be permanent or temporary.</p>
+        <div class="card">
+          <div class="form-row">
+            <input type="text" x-model="newIp" placeholder="IP Address">
+            <input type="text" x-model="newReason" placeholder="Reason">
+            <input type="number" x-model="newDuration" placeholder="Duration (seconds, empty=permanent)">
+            <button class="btn btn-danger" @click="ban()">Ban IP</button>
+          </div>
+        </div>
+        <div class="card">
+          <div style="margin-bottom: 1rem;">
+            <button class="btn btn-primary" @click="load(false)">All Bans</button>
+            <button class="btn btn-primary" @click="load(true)">Active Only</button>
+          </div>
+          <div x-show="loading" class="loading">Loading bans...</div>
+          <div x-show="!loading && bans.length === 0" class="empty-state">
+            <div class="empty-state-icon">&#128683;</div>
+            <div class="empty-state-title">No IP bans</div>
+            <div class="empty-state-desc">No IP addresses are currently banned.</div>
+          </div>
+          <table x-show="!loading && bans.length > 0">
+            <thead><tr><th>ID</th><th>IP</th><th>Reason</th><th>Expires</th><th>Actions</th></tr></thead>
+            <tbody>
+              <template x-for="b in bans" :key="b.id">
+                <tr>
+                  <td x-text="b.id"></td>
+                  <td class="mono" x-text="b.ip"></td>
+                  <td x-text="b.reason"></td>
+                  <td x-text="b.expires_at || 'Never'"></td>
+                  <td><button class="btn btn-small btn-success" @click="unban(b.ip)">Unban</button></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Rate Limits -->
+      <div class="section" :class="{ active: $store.app.section === 'ratelimits' }" x-data="rateLimitsData()" x-init="load()">
+        <h2>Rate Limits</h2>
+        <p class="section-desc">View and manage request rate limiting per IP address.</p>
+        <div class="card">
+          <div class="form-row">
+            <input type="text" x-model="ip" placeholder="IP Address to check">
+            <button class="btn btn-primary" @click="checkIp()">Check IP</button>
+            <button class="btn btn-warning" @click="resetIp()">Reset IP Limits</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Global Stats</h3>
+          <div x-show="loading" class="loading">Loading stats...</div>
+          <pre x-show="!loading" x-text="JSON.stringify(stats, null, 2)"></pre>
+        </div>
+        <div class="card" x-show="ipState">
+          <h3 x-text="'Rate Limit for ' + ip"></h3>
+          <pre x-text="JSON.stringify(ipState, null, 2)"></pre>
+        </div>
+      </div>
+
+      <!-- Snatches -->
+      <div class="section" :class="{ active: $store.app.section === 'snatches' }" x-data="snatchesData()">
+        <h2>Snatches</h2>
+        <p class="section-desc">Download records showing which users downloaded which torrents and their seeding history.</p>
+        <div class="card">
+          <div class="form-row">
+            <input type="number" x-model="userId" placeholder="User ID">
+            <button class="btn btn-primary" @click="loadByUser()">Load User Snatches</button>
+            <input type="number" x-model="torrentId" placeholder="Torrent ID">
+            <button class="btn btn-primary" @click="loadByTorrent()">Load Torrent Snatches</button>
+          </div>
+        </div>
+        <div class="card">
+          <div x-show="loading" class="loading">Loading snatches...</div>
+          <div x-show="!loading && snatches.length === 0" class="empty-state">
+            <div class="empty-state-icon">&#128269;</div>
+            <div class="empty-state-title">No snatches to display</div>
+            <div class="empty-state-desc">Enter a User ID or Torrent ID above to view download records.</div>
+          </div>
+          <table x-show="!loading && snatches.length > 0">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>User</th>
+                <th>Torrent</th>
+                <th>Seedtime</th>
+                <th class="tooltip" data-tip="Hit-and-Run: downloaded but didn't seed">HnR</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="s in snatches" :key="s.id">
+                <tr>
+                  <td x-text="s.id"></td>
+                  <td x-text="s.user_id"></td>
+                  <td x-text="s.torrent_id"></td>
+                  <td x-text="s.seedtime_hours + 'h'"></td>
+                  <td>
+                    <span class="badge" :class="s.hnr ? 'badge-danger' : 'badge-success'" x-text="s.hnr ? 'HnR' : 'OK'"></span>
+                  </td>
+                  <td>
+                    <button class="btn btn-small btn-warning" x-show="s.hnr" @click="clearHnr(s.id)">Clear HnR</button>
+                    <button class="btn btn-small btn-danger" @click="deleteSnatch(s.id)">Delete</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Hit-and-Run -->
+      <div class="section" :class="{ active: $store.app.section === 'hnr' }" x-data="hnrData()" x-init="load()">
+        <h2>Hit-and-Run Violations</h2>
+        <p class="section-desc">Users who downloaded torrents but didn't seed back the required amount of time.</p>
+        <div class="card">
+          <button class="btn btn-primary" @click="load()">Refresh</button>
+          <button class="btn btn-warning" @click="check()">Trigger HnR Check</button>
+        </div>
+        <div class="card">
+          <div x-show="loading" class="loading">Loading violations...</div>
+          <div x-show="!loading && violations.length === 0" class="empty-state">
+            <div class="empty-state-icon">&#9989;</div>
+            <div class="empty-state-title">No violations</div>
+            <div class="empty-state-desc">All users are seeding properly. Great!</div>
+          </div>
+          <table x-show="!loading && violations.length > 0">
+            <thead><tr><th>ID</th><th>User</th><th>Torrent</th><th>Completed</th><th>Seedtime</th><th>Actions</th></tr></thead>
+            <tbody>
+              <template x-for="s in violations" :key="s.id">
+                <tr>
+                  <td x-text="s.id"></td>
+                  <td x-text="s.user_id"></td>
+                  <td x-text="s.torrent_id"></td>
+                  <td x-text="s.completed_at || '-'"></td>
+                  <td x-text="s.seedtime_hours + 'h'"></td>
+                  <td><button class="btn btn-small btn-warning" @click="clearHnr(s.id)">Clear HnR</button></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Bonus Points -->
+      <div class="section" :class="{ active: $store.app.section === 'bonus' }" x-data="bonusData()" x-init="load()">
+        <h2>Bonus Points</h2>
+        <p class="section-desc">Reward system for active seeders. Points can be redeemed for upload credit.</p>
+        <div class="card">
+          <h3>Calculator Stats</h3>
+          <div x-show="loading" class="loading">Loading stats...</div>
+          <pre x-show="!loading" x-text="JSON.stringify(stats, null, 2)"></pre>
+        </div>
+        <div class="card">
+          <h3>Manage User Points</h3>
+          <div class="form-row"><label>User ID:</label><input type="number" x-model="userId" placeholder="Enter user ID"></div>
+          <div class="form-row"><label>Points:</label><input type="number" x-model="points" step="0.01" placeholder="Amount"></div>
+          <div class="actions">
+            <button class="btn btn-primary" @click="getPoints()">Get Points</button>
+            <button class="btn btn-success" @click="addPoints()">Add Points</button>
+            <button class="btn btn-danger" @click="removePoints()">Remove Points</button>
+            <button class="btn btn-warning" @click="redeem()">Redeem for Upload</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Swarms -->
+      <div class="section" :class="{ active: $store.app.section === 'swarms' }" x-data="swarmsData()" x-init="load()">
+        <h2>Active Swarms</h2>
+        <p class="section-desc">Torrents with active peers. A swarm is the group of peers (seeders + leechers) sharing a torrent.</p>
+        <div class="card">
+          <button class="btn btn-primary" @click="load()">Refresh</button>
+        </div>
+        <div class="card">
+          <div x-show="loading" class="loading">Loading swarms...</div>
+          <div x-show="!loading && swarms.length === 0" class="empty-state">
+            <div class="empty-state-icon">&#128279;</div>
+            <div class="empty-state-title">No active swarms</div>
+            <div class="empty-state-desc">No torrents have connected peers right now.</div>
+          </div>
+          <table x-show="!loading && swarms.length > 0">
+            <thead>
+              <tr>
+                <th>Info Hash</th>
+                <th class="tooltip" data-tip="Users sharing the complete file">Seeders</th>
+                <th class="tooltip" data-tip="Users downloading the file">Leechers</th>
+                <th>Completed</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="s in swarms" :key="s.info_hash">
+                <tr>
+                  <td class="mono" x-text="s.info_hash.substring(0,16) + '...'"></td>
+                  <td x-text="s.seeders"></td>
+                  <td x-text="s.leechers"></td>
+                  <td x-text="s.completed"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- System -->
+      <div class="section" :class="{ active: $store.app.section === 'system' }" x-data="systemData()" x-init="load()">
+        <h2>System</h2>
+        <p class="section-desc">Maintenance tasks and system diagnostics.</p>
+        <div class="card">
+          <h3>Maintenance Actions</h3>
+          <div class="action-grid">
+            <div class="action-item">
+              <button class="btn btn-primary" @click="flush()">Flush Stats to DB</button>
+              <span class="action-desc">Write pending stats from memory to database</span>
+            </div>
+            <div class="action-item">
+              <button class="btn btn-primary" @click="hnrCheck()">Run HnR Check</button>
+              <span class="action-desc">Check for users who haven't seeded enough</span>
+            </div>
+            <div class="action-item">
+              <button class="btn btn-primary" @click="calcBonus()">Calculate Bonus Points</button>
+              <span class="action-desc">Award bonus points to active seeders</span>
+            </div>
+            <div class="action-item">
+              <button class="btn btn-warning" @click="cleanupBans()">Cleanup Expired Bans</button>
+              <span class="action-desc">Remove expired IP bans from database</span>
+            </div>
+            <div class="action-item">
+              <button class="btn btn-danger" @click="clearCache()">Clear Verification Cache</button>
+              <span class="action-desc">Clear cached peer verification results</span>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Peer Verification Stats</h3>
+          <div x-show="loading" class="loading">Loading stats...</div>
+          <pre x-show="!loading" x-text="JSON.stringify(verificationStats, null, 2)"></pre>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

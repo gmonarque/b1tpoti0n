@@ -1,0 +1,557 @@
+:root {
+  --bg: #111;
+  --bg2: #1a1a1a;
+  --bg3: #333;
+  --accent: #fff;
+  --text: #e0e0e0;
+  --text2: #888;
+  --success: #4a4;
+  --warning: #a80;
+  --error: #a44;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+header {
+  background: var(--bg2);
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--bg3);
+}
+
+.header-logo {
+  height: 44px;
+  width: auto;
+}
+
+.config {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.config input {
+  background: var(--bg);
+  border: 1px solid var(--bg3);
+  color: var(--text);
+  padding: 0.5rem;
+  border-radius: 4px;
+  width: 200px;
+}
+
+.config button {
+  background: var(--bg3);
+  color: var(--text);
+  border: 1px solid #555;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.config button:hover {
+  background: #444;
+}
+
+main {
+  display: flex;
+  min-height: calc(100vh - 60px);
+}
+
+nav {
+  background: var(--bg2);
+  width: 200px;
+  padding: 1rem;
+  border-right: 1px solid var(--bg3);
+  position: relative;
+  z-index: 1;
+}
+
+nav button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text2);
+  padding: 0.75rem;
+  cursor: pointer;
+  border-radius: 4px;
+  margin-bottom: 0.25rem;
+  font-size: 0.9rem;
+}
+
+nav button:hover {
+  background: var(--bg3);
+  color: var(--text);
+}
+
+nav button.active {
+  background: var(--bg3);
+  color: var(--text);
+  border-left: 2px solid var(--text);
+}
+
+.content {
+  flex: 1;
+  padding: 2rem;
+  overflow-y: auto;
+  position: relative;
+  z-index: 10;
+}
+
+.section {
+  display: none;
+}
+
+.section.active {
+  display: block;
+}
+
+.section h2 {
+  color: var(--text);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--bg3);
+}
+
+.card {
+  background: var(--bg2);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.card h3 {
+  font-size: 1rem;
+  color: var(--text2);
+  margin-bottom: 0.5rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.stat-box {
+  background: var(--bg3);
+  padding: 1rem;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat-box .value {
+  font-size: 2rem;
+  font-weight: bold;
+  color: var(--text);
+}
+
+.stat-box .label {
+  color: var(--text2);
+  font-size: 0.8rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th, td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--bg3);
+}
+
+th {
+  background: var(--bg3);
+  color: var(--text2);
+}
+
+tr:hover {
+  background: var(--bg3);
+}
+
+.btn {
+  padding: 0.4rem 0.8rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin-right: 0.25rem;
+}
+
+.btn-primary {
+  background: #555;
+  color: var(--text);
+}
+
+.btn-success {
+  background: var(--success);
+  color: white;
+}
+
+.btn-warning {
+  background: var(--warning);
+  color: black;
+}
+
+.btn-danger {
+  background: var(--error);
+  color: white;
+}
+
+.btn-small {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.form-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  align-items: center;
+}
+
+.form-row label {
+  min-width: 120px;
+  color: var(--text2);
+}
+
+.form-row input,
+.form-row select {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--bg3);
+  color: var(--text);
+  padding: 0.5rem;
+  border-radius: 4px;
+}
+
+.actions {
+  margin-top: 1rem;
+}
+
+.toast {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  color: white;
+  font-weight: 500;
+  z-index: 1000;
+  animation: slideIn 0.3s ease;
+}
+
+.toast.success {
+  background: var(--success);
+}
+
+.toast.error {
+  background: var(--error);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-success {
+  background: var(--success);
+  color: white;
+}
+
+.badge-danger {
+  background: var(--error);
+  color: white;
+}
+
+.badge-warning {
+  background: var(--warning);
+  color: black;
+}
+
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal.active {
+  display: flex;
+}
+
+.modal-content {
+  background: var(--bg2);
+  padding: 2rem;
+  border-radius: 8px;
+  min-width: 400px;
+  max-width: 600px;
+}
+
+.modal-content h3 {
+  margin-bottom: 1rem;
+  color: var(--text);
+}
+
+.modal-actions {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.mono {
+  font-family: monospace;
+  font-size: 0.85rem;
+}
+
+pre {
+  background: var(--bg);
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 0.8rem;
+}
+
+/* Section descriptions */
+.section-desc {
+  color: var(--text2);
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+  margin-top: -0.5rem;
+}
+
+/* Connection status */
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.status-indicator.connected {
+  background: rgba(68, 170, 68, 0.2);
+  color: var(--success);
+}
+
+.status-indicator.disconnected {
+  background: rgba(170, 68, 68, 0.2);
+  color: var(--error);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-indicator.connected .status-dot {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Loading state */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: var(--text2);
+}
+
+.loading::before {
+  content: '';
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--bg3);
+  border-top-color: var(--text);
+  border-radius: 50%;
+  margin-right: 0.75rem;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: var(--text2);
+}
+
+.empty-state-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.empty-state-title {
+  font-size: 1.1rem;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+
+.empty-state-desc {
+  font-size: 0.9rem;
+}
+
+/* Tooltips */
+.tooltip {
+  position: relative;
+  cursor: help;
+  border-bottom: 1px dotted var(--text2);
+}
+
+/* Buttons with tooltips don't need the dotted underline */
+button.tooltip,
+.btn.tooltip {
+  cursor: pointer;
+  border-bottom: none;
+}
+
+.tooltip::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg);
+  color: var(--text);
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0.2s;
+  z-index: 9999;
+  border: 1px solid var(--bg3);
+  margin-bottom: 0.5rem;
+  white-space: nowrap;
+}
+
+.tooltip:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Button improvements */
+.btn {
+  transition: all 0.15s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn-primary:hover {
+  background: #666;
+}
+
+.btn-success:hover {
+  background: #5b5;
+}
+
+.btn-warning:hover {
+  background: #c90;
+}
+
+.btn-danger:hover {
+  background: #b55;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Stat box clickable */
+.stat-box.clickable {
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.stat-box.clickable:hover {
+  transform: translateY(-2px);
+  background: #444;
+}
+
+/* Help text under inputs */
+.help-text {
+  font-size: 0.75rem;
+  color: var(--text2);
+  margin-top: 0.25rem;
+}
+
+/* Action buttons with descriptions */
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.action-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.action-item .btn {
+  width: 100%;
+}
+
+.action-desc {
+  font-size: 0.75rem;
+  color: var(--text2);
+  line-height: 1.3;
+}
