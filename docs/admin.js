@@ -1,6 +1,91 @@
 // b1tpoti0n Admin UI - Alpine.js version
 
 // =============================================================================
+// Demo Mode Detection
+// =============================================================================
+
+const isDemo = window.location.hostname.includes('github.io') || window.location.search.includes('demo=1');
+
+// =============================================================================
+// Demo Data
+// =============================================================================
+
+const demoData = {
+  stats: {
+    users: 1247,
+    torrents: 8934,
+    peers: 15623,
+    active_swarms: 2841,
+    total_snatches: 89234,
+    hnr_count: 23,
+    active_bans: 8,
+    total_uploaded: 847293847293847,
+    total_downloaded: 293847293847293,
+    whitelisted_clients: 9,
+    ets: { passkeys: 1247, whitelist: 9, banned_ips: 8 }
+  },
+  users: [
+    { id: 1, passkey: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4', uploaded: 1572864000000, downloaded: 524288000000, bonus_points: 342.5, hnr_warnings: 0, can_leech: true, created_at: '2024-03-15T10:30:00Z' },
+    { id: 2, passkey: 'b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5', uploaded: 8589934592000, downloaded: 2147483648000, bonus_points: 1205.75, hnr_warnings: 0, can_leech: true, created_at: '2024-01-22T14:45:00Z' },
+    { id: 3, passkey: 'c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6', uploaded: 107374182400, downloaded: 536870912000, bonus_points: 45.2, hnr_warnings: 2, can_leech: true, created_at: '2024-06-08T09:15:00Z' },
+    { id: 4, passkey: 'd4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1', uploaded: 0, downloaded: 10737418240, bonus_points: 0, hnr_warnings: 3, can_leech: false, created_at: '2024-11-02T16:20:00Z' },
+    { id: 5, passkey: 'e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2', uploaded: 42949672960000, downloaded: 10737418240000, bonus_points: 5420.0, hnr_warnings: 0, can_leech: true, created_at: '2023-08-14T11:00:00Z' },
+  ],
+  torrents: [
+    { id: 1, info_hash: 'a1b2c3d4e5f6789012345678901234567890', seeders: 45, leechers: 12, completed: 892, freeleech: true, upload_multiplier: 1.0, download_multiplier: 0.0, created_at: '2024-10-01T08:00:00Z' },
+    { id: 2, info_hash: 'b2c3d4e5f67890123456789012345678901a', seeders: 128, leechers: 34, completed: 2341, freeleech: false, upload_multiplier: 2.0, download_multiplier: 1.0, created_at: '2024-09-15T12:30:00Z' },
+    { id: 3, info_hash: 'c3d4e5f6789012345678901234567890123b', seeders: 8, leechers: 2, completed: 156, freeleech: false, upload_multiplier: 1.0, download_multiplier: 0.5, created_at: '2024-11-20T15:45:00Z' },
+    { id: 4, info_hash: 'd4e5f67890123456789012345678901234c5', seeders: 312, leechers: 89, completed: 5678, freeleech: false, upload_multiplier: 1.0, download_multiplier: 1.0, created_at: '2024-07-04T09:00:00Z' },
+    { id: 5, info_hash: 'e5f678901234567890123456789012345d67', seeders: 67, leechers: 15, completed: 1023, freeleech: true, upload_multiplier: 1.5, download_multiplier: 0.0, created_at: '2024-12-01T18:20:00Z' },
+  ],
+  whitelist: [
+    { id: 1, prefix: '-TR', name: 'Transmission', created_at: '2024-01-01T00:00:00Z' },
+    { id: 2, prefix: '-qB', name: 'qBittorrent', created_at: '2024-01-01T00:00:00Z' },
+    { id: 3, prefix: '-DE', name: 'Deluge', created_at: '2024-01-01T00:00:00Z' },
+    { id: 4, prefix: '-UT', name: 'uTorrent', created_at: '2024-01-01T00:00:00Z' },
+    { id: 5, prefix: '-lt', name: 'libtorrent (rasterbar)', created_at: '2024-01-01T00:00:00Z' },
+    { id: 6, prefix: '-LT', name: 'libtorrent (rakshasa)', created_at: '2024-01-01T00:00:00Z' },
+    { id: 7, prefix: '-AZ', name: 'Azureus/Vuze', created_at: '2024-01-01T00:00:00Z' },
+    { id: 8, prefix: '-BT', name: 'BitTorrent', created_at: '2024-01-01T00:00:00Z' },
+    { id: 9, prefix: '-WW', name: 'WebTorrent', created_at: '2024-01-01T00:00:00Z' },
+  ],
+  bans: [
+    { id: 1, ip: '192.168.1.100', reason: 'Ratio cheating detected', expires_at: null, created_at: '2024-12-10T14:30:00Z' },
+    { id: 2, ip: '10.0.0.55', reason: 'Spam announces', expires_at: '2025-01-15T00:00:00Z', created_at: '2024-12-15T09:00:00Z' },
+    { id: 3, ip: '172.16.0.42', reason: 'Client spoofing', expires_at: null, created_at: '2024-11-28T16:45:00Z' },
+  ],
+  hnr: [
+    { id: 101, user_id: 4, torrent_id: 2, completed_at: '2024-11-15T10:00:00Z', seedtime: 3600, seedtime_hours: 1.0, hnr: true },
+    { id: 102, user_id: 3, torrent_id: 4, completed_at: '2024-12-01T14:30:00Z', seedtime: 18000, seedtime_hours: 5.0, hnr: true },
+  ],
+  swarms: [
+    { info_hash: 'a1b2c3d4e5f6789012345678901234567890', seeders: 45, leechers: 12, completed: 892 },
+    { info_hash: 'b2c3d4e5f67890123456789012345678901a', seeders: 128, leechers: 34, completed: 2341 },
+    { info_hash: 'd4e5f67890123456789012345678901234c5', seeders: 312, leechers: 89, completed: 5678 },
+    { info_hash: 'e5f678901234567890123456789012345d67', seeders: 67, leechers: 15, completed: 1023 },
+    { info_hash: 'f6789012345678901234567890123456e789', seeders: 23, leechers: 8, completed: 445 },
+    { info_hash: '78901234567890123456789012345678f901', seeders: 89, leechers: 21, completed: 1876 },
+  ],
+  rateLimits: {
+    enabled: true,
+    total_ips_tracked: 892,
+    limits: { announce: '30/min', scrape: '10/min', admin_api: '100/min' }
+  },
+  bonus: {
+    enabled: true,
+    base_points: 1.0,
+    conversion_rate: 1000000000,
+    last_calculation: '2024-12-26T12:00:00Z'
+  },
+  verification: {
+    enabled: true,
+    cache_size: 2341,
+    verified_count: 1892,
+    failed_count: 449
+  }
+};
+
+// =============================================================================
 // Global State & Config
 // =============================================================================
 
@@ -76,9 +161,13 @@ document.addEventListener('alpine:init', () => {
   // Main app store
   Alpine.store('app', {
     section: 'stats',
-    connected: false,
+    connected: isDemo,
 
     async connect() {
+      if (isDemo) {
+        toast('Demo mode - no connection needed', 'success');
+        return;
+      }
       saveConfig();
       const data = await api('GET', '/stats');
       if (data.success) {
@@ -104,14 +193,18 @@ function dashboardData() {
     loading: true,
     async load() {
       this.loading = true;
-      const data = await api('GET', '/stats');
-      if (data.success) this.stats = data.data;
+      if (isDemo) {
+        this.stats = demoData.stats;
+      } else {
+        const data = await api('GET', '/stats');
+        if (data.success) this.stats = data.data;
+      }
       this.loading = false;
     },
-    async flush() { await api('POST', '/stats/flush'); },
-    async hnrCheck() { await api('POST', '/hnr/check'); },
-    async calcBonus() { await api('POST', '/bonus/calculate'); },
-    async cleanupBans() { await api('POST', '/bans/cleanup'); }
+    async flush() { if (isDemo) { toast('Demo: Stats flushed to database', 'success'); return; } await api('POST', '/stats/flush'); },
+    async hnrCheck() { if (isDemo) { toast('Demo: HnR check completed', 'success'); return; } await api('POST', '/hnr/check'); },
+    async calcBonus() { if (isDemo) { toast('Demo: Bonus points calculated', 'success'); return; } await api('POST', '/bonus/calculate'); },
+    async cleanupBans() { if (isDemo) { toast('Demo: Expired bans cleaned up', 'success'); return; } await api('POST', '/bans/cleanup'); }
   };
 }
 
@@ -128,8 +221,12 @@ function usersData() {
 
     async load() {
       this.loading = true;
-      const data = await api('GET', '/users');
-      if (data.success) this.users = data.data;
+      if (isDemo) {
+        this.users = demoData.users;
+      } else {
+        const data = await api('GET', '/users');
+        if (data.success) this.users = data.data;
+      }
       this.loading = false;
     },
 
@@ -209,8 +306,12 @@ function torrentsData() {
 
     async load() {
       this.loading = true;
-      const data = await api('GET', '/torrents');
-      if (data.success) this.torrents = data.data;
+      if (isDemo) {
+        this.torrents = demoData.torrents;
+      } else {
+        const data = await api('GET', '/torrents');
+        if (data.success) this.torrents = data.data;
+      }
       this.loading = false;
     },
 
@@ -276,8 +377,12 @@ function whitelistData() {
 
     async load() {
       this.loading = true;
-      const data = await api('GET', '/whitelist');
-      if (data.success) this.items = data.data;
+      if (isDemo) {
+        this.items = demoData.whitelist;
+      } else {
+        const data = await api('GET', '/whitelist');
+        if (data.success) this.items = data.data;
+      }
       this.loading = false;
     },
 
@@ -314,9 +419,13 @@ function bansData() {
 
     async load(activeOnly = false) {
       this.loading = true;
-      const path = activeOnly ? '/bans/active' : '/bans';
-      const data = await api('GET', path);
-      if (data.success) this.bans = data.data;
+      if (isDemo) {
+        this.bans = demoData.bans;
+      } else {
+        const path = activeOnly ? '/bans/active' : '/bans';
+        const data = await api('GET', path);
+        if (data.success) this.bans = data.data;
+      }
       this.loading = false;
     },
 
@@ -355,8 +464,12 @@ function rateLimitsData() {
 
     async load() {
       this.loading = true;
-      const data = await api('GET', '/ratelimits');
-      if (data.success) this.stats = data.data;
+      if (isDemo) {
+        this.stats = demoData.rateLimits;
+      } else {
+        const data = await api('GET', '/ratelimits');
+        if (data.success) this.stats = data.data;
+      }
       this.loading = false;
     },
 
@@ -423,8 +536,12 @@ function hnrData() {
 
     async load() {
       this.loading = true;
-      const data = await api('GET', '/hnr');
-      if (data.success) this.violations = data.data;
+      if (isDemo) {
+        this.violations = demoData.hnr;
+      } else {
+        const data = await api('GET', '/hnr');
+        if (data.success) this.violations = data.data;
+      }
       this.loading = false;
     },
 
@@ -450,8 +567,12 @@ function bonusData() {
 
     async load() {
       this.loading = true;
-      const data = await api('GET', '/bonus/stats');
-      if (data.success) this.stats = data.data;
+      if (isDemo) {
+        this.stats = demoData.bonus;
+      } else {
+        const data = await api('GET', '/bonus/stats');
+        if (data.success) this.stats = data.data;
+      }
       this.loading = false;
     },
 
@@ -496,8 +617,12 @@ function swarmsData() {
 
     async load() {
       this.loading = true;
-      const data = await api('GET', '/swarms');
-      if (data.success) this.swarms = data.data;
+      if (isDemo) {
+        this.swarms = demoData.swarms;
+      } else {
+        const data = await api('GET', '/swarms');
+        if (data.success) this.swarms = data.data;
+      }
       this.loading = false;
     }
   };
@@ -511,8 +636,12 @@ function systemData() {
 
     async load() {
       this.loading = true;
-      const data = await api('GET', '/verification/stats');
-      if (data.success) this.verificationStats = data.data;
+      if (isDemo) {
+        this.verificationStats = demoData.verification;
+      } else {
+        const data = await api('GET', '/verification/stats');
+        if (data.success) this.verificationStats = data.data;
+      }
       this.loading = false;
     },
 
