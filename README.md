@@ -18,13 +18,13 @@ Private BitTorrent tracker in Elixir.
 | WebSocket live stats | Built-in | No | No |
 | Admin REST API | Built-in | Via Gazelle | No |
 
-**Start simple, scale when needed** SQLite + in-memory peers for small communities. Swap to PostgreSQL + Redis when you outgrow it — just change config, no code changes.
+**Start simple, scale when needed.** SQLite + in-memory peers for small communities. Swap to PostgreSQL + Redis when you want with config changes only.
 
-**Scalability is built into Elixir** Elixir runs on the Erlang VM (BEAM), designed for telecom systems handling millions of concurrent connections. Each torrent swarm runs in its own lightweight process. The VM handles scheduling across all CPU cores automatically. When one node isn't enough, add more — Horde distributes swarm workers across the cluster transparently.
+**Scalability is built into Elixir.** Elixir runs on the Erlang VM (BEAM), designed for telecom systems handling millions of concurrent connections. Each torrent swarm runs in its own lightweight process. The VM handles scheduling across all CPU cores automatically. When one node isn't enough, just add more! Horde distributes swarm workers across the cluster transparently. See [DOCUMENTATION.md](DOCUMENTATION.md) for details.
 
-**Fault tolerance by defaul.** OTP supervision trees restart crashed processes automatically. A bug in one swarm doesn't take down the tracker. Hot code upgrades let you deploy fixes without disconnecting peers.
+**Fault tolerance by default.** OTP supervision trees restart crashed processes automatically. A bug in one swarm doesn't take down the tracker. Hot code upgrades let you deploy fixes without disconnecting peers.
 
-**Batteries included** HnR detection, bonus points, freeleech, ratio enforcement, client whitelist — all built-in. No separate daemons or plugins to maintain.
+**Batteries included.** HnR detection, bonus points, freeleech, ratio enforcement and client whitelist are all built-in. No separate daemons or plugins to maintain.
 
 ## Features
 
