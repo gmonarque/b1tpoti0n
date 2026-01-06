@@ -19,14 +19,12 @@ defmodule B1tpoti0n.Application do
   use Application
   require Logger
 
-  alias B1tpoti0n.Cluster
-
   @impl true
   def start(_type, _args) do
     http_port = Application.get_env(:b1tpoti0n, :http_port, 8080)
     https_port = Application.get_env(:b1tpoti0n, :https_port)
     https_only = Application.get_env(:b1tpoti0n, :https_only, false)
-    cluster_enabled = Cluster.enabled?()
+    cluster_enabled = B1tpoti0n.Cluster.enabled?()
 
     children = [
       # Database connection pool (must start first)
@@ -54,7 +52,7 @@ defmodule B1tpoti0n.Application do
         children ++
           [
             # libcluster for node discovery
-            {Cluster.Supervisor, [Cluster.topology(), [name: B1tpoti0n.ClusterSupervisor]]},
+            {Cluster.Supervisor, [B1tpoti0n.Cluster.topology(), [name: B1tpoti0n.ClusterSupervisor]]},
 
             # Horde distributed registry for swarm workers
             B1tpoti0n.Swarm.DistributedRegistry,

@@ -118,6 +118,9 @@ defmodule B1tpoti0n.Swarm.Worker do
 
   @impl true
   def handle_call({:announce, peer_data, num_want}, _from, state) do
+    require Logger
+    Logger.info("Announce: event=#{peer_data.event} left=#{peer_data.left} up=#{peer_data.uploaded} down=#{peer_data.downloaded}")
+
     key = {peer_data.ip, peer_data.port}
     now = System.system_time(:second)
 
@@ -140,12 +143,18 @@ defmodule B1tpoti0n.Swarm.Worker do
     }
 
     # Handle key rotation (anti-spoofing)
+    # Can be disabled via config for client compatibility
+    enforce_announce_key = Application.get_env(:b1tpoti0n, :enforce_announce_key, true)
     request_key = Map.get(peer_data, :key)
     existing_key = if old_peer, do: Map.get(old_peer, :announce_key), else: nil
 
     # Validate key if peer already exists and has a key
     key_validation =
       cond do
+        # Feature disabled - skip validation
+        not enforce_announce_key ->
+          :ok
+
         # New peer - no validation needed
         is_nil(existing_key) ->
           :ok
