@@ -108,13 +108,29 @@ defmodule Mix.Tasks.Benchmark do
   defp run_client(parent, _client_id, host, port, passkey, info_hashes, end_time) do
     peer_id = :crypto.strong_rand_bytes(20)
     client_port = Enum.random(6881..6999)
-    ip = "#{Enum.random(1..254)}.#{Enum.random(1..254)}.#{Enum.random(1..254)}.#{Enum.random(1..254)}"
 
-    result = run_requests(host, port, passkey, info_hashes, peer_id, client_port, ip, end_time, 0, 0, [])
+    ip =
+      "#{Enum.random(1..254)}.#{Enum.random(1..254)}.#{Enum.random(1..254)}.#{Enum.random(1..254)}"
+
+    result =
+      run_requests(host, port, passkey, info_hashes, peer_id, client_port, ip, end_time, 0, 0, [])
+
     send(parent, {:done, self(), result})
   end
 
-  defp run_requests(host, port, passkey, info_hashes, peer_id, client_port, ip, end_time, requests, errors, latencies) do
+  defp run_requests(
+         host,
+         port,
+         passkey,
+         info_hashes,
+         peer_id,
+         client_port,
+         ip,
+         end_time,
+         requests,
+         errors,
+         latencies
+       ) do
     if System.monotonic_time(:millisecond) >= end_time do
       %{requests: requests, errors: errors, latencies: latencies}
     else
@@ -127,10 +143,34 @@ defmodule Mix.Tasks.Benchmark do
 
       case result do
         :ok ->
-          run_requests(host, port, passkey, info_hashes, peer_id, client_port, ip, end_time, requests + 1, errors, [latency | latencies])
+          run_requests(
+            host,
+            port,
+            passkey,
+            info_hashes,
+            peer_id,
+            client_port,
+            ip,
+            end_time,
+            requests + 1,
+            errors,
+            [latency | latencies]
+          )
 
         :error ->
-          run_requests(host, port, passkey, info_hashes, peer_id, client_port, ip, end_time, requests + 1, errors + 1, latencies)
+          run_requests(
+            host,
+            port,
+            passkey,
+            info_hashes,
+            peer_id,
+            client_port,
+            ip,
+            end_time,
+            requests + 1,
+            errors + 1,
+            latencies
+          )
       end
     end
   end

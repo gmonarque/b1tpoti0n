@@ -17,13 +17,9 @@ defmodule B1tpoti0n.Stats.CollectorTest do
       user = create_user()
       initial_uploaded = user.uploaded
 
-      # Record some stats
       Buffer.record_transfer(user.id, 5000, 2500)
-
-      # Force flush
       Collector.force_flush()
 
-      # Verify database was updated
       updated_user = Repo.get!(User, user.id)
       assert updated_user.uploaded == initial_uploaded + 5000
       assert updated_user.downloaded == 2500
@@ -33,13 +29,9 @@ defmodule B1tpoti0n.Stats.CollectorTest do
       info_hash = :crypto.strong_rand_bytes(20)
       {:ok, torrent} = Repo.insert(%Torrent{info_hash: info_hash})
 
-      # Record torrent stats
       Buffer.record_torrent_stats(torrent.id, 10, 5)
-
-      # Force flush
       Collector.force_flush()
 
-      # Verify database was updated
       updated_torrent = Repo.get!(Torrent, torrent.id)
       assert updated_torrent.seeders == 10
       assert updated_torrent.leechers == 5
@@ -51,7 +43,6 @@ defmodule B1tpoti0n.Stats.CollectorTest do
 
       Collector.force_flush()
 
-      # Buffer should be empty
       assert Buffer.size() == 0
     end
 
@@ -86,17 +77,12 @@ defmodule B1tpoti0n.Stats.CollectorTest do
     end
 
     test "handles non-existent user gracefully" do
-      # Record stats for non-existent user
-      Buffer.record_transfer(999999, 1000, 500)
-
-      # Should not raise
+      Buffer.record_transfer(999_999, 1000, 500)
       assert :ok = Collector.force_flush()
     end
 
     test "handles non-existent torrent gracefully" do
-      Buffer.record_torrent_stats(999999, 10, 5)
-
-      # Should not raise
+      Buffer.record_torrent_stats(999_999, 10, 5)
       assert :ok = Collector.force_flush()
     end
   end

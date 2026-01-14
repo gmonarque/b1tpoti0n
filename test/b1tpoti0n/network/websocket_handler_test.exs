@@ -121,7 +121,8 @@ defmodule B1tpoti0n.Network.WebSocketHandlerTest do
     test "broadcasts message when subscribed to event type", %{state: state} do
       message = %{type: :stats, payload: %{test: true}}
 
-      {:push, {:text, response}, ^state} = WebSocketHandler.handle_info({:broadcast, message}, state)
+      {:push, {:text, response}, ^state} =
+        WebSocketHandler.handle_info({:broadcast, message}, state)
 
       decoded = Jason.decode!(response)
       assert decoded["type"] == "stats"

@@ -22,12 +22,18 @@ config :b1tpoti0n,
   enforce_announce_key: false,
   # Admin API authentication token (set via ADMIN_TOKEN env var in production)
   # If nil or empty, admin API is disabled (returns 503)
-  admin_token: "dev_admin_token_change_in_production_please",
+  # SECURITY: No default token - must be explicitly set
+  admin_token: nil,
   # CORS allowed origins for Admin API
-  # "*" = allow all (default, for development)
+  # [] = no CORS (most secure, default)
+  # "*" = allow all (NOT recommended for production)
   # "https://admin.example.com" = single origin
   # ["https://admin.example.com", "https://backup.example.com"] = multiple origins
-  cors_origins: "*",
+  cors_origins: [],
+  # Trust X-Forwarded-For header for client IP detection
+  # Set to true ONLY when behind a trusted reverse proxy
+  # SECURITY: If false (default), uses direct connection IP only
+  trust_x_forwarded_for: false,
   # IP whitelist for Admin API (additional security layer)
   # Empty list [] = no restriction (default, all IPs allowed)
   # ["127.0.0.1", "::1", "192.168.1.100"] = only these IPs can access admin API
@@ -44,10 +50,10 @@ config :b1tpoti0n,
   rate_limit_whitelist: ["127.0.0.1", "::1"],
   # UDP tracker configuration (BEP 15)
   # Set udp_port to enable UDP tracker, nil to disable
-  # WARNING: UDP does not support passkey authentication (BEP 15 limitation).
+  # SECURITY: Disabled by default - UDP does not support passkey authentication (BEP 15 limitation).
   # User stats (upload/download) are NOT tracked for UDP announces.
-  # Only enable for public tracker mode or hybrid setups.
-  udp_port: 8082,
+  # Only enable for public tracker mode or hybrid setups where authentication is not required.
+  udp_port: nil,
   udp_connection_timeout: 120,
   # Hit-and-Run detection configuration
   # Set to nil to disable HnR checking
@@ -105,6 +111,28 @@ config :b1tpoti0n,
     cache_ttl: 3600,
     # Maximum concurrent verification attempts
     max_concurrent: 50
+  ],
+  # /stats endpoint configuration
+  # Exposes internal statistics - should be protected in production
+  stats_endpoint: [
+    # Set to false to disable the endpoint entirely
+    enabled: true,
+    # Require admin token authentication (X-Admin-Token header or ?token= query param)
+    require_auth: false,
+    # IP whitelist (empty = allow all if auth not required, or use auth)
+    # Example: ["127.0.0.1", "::1", "10.0.0.0/8"] for localhost + internal network
+    ip_whitelist: ["127.0.0.1", "::1"]
+  ],
+  # /metrics endpoint configuration (Prometheus)
+  # Exposes Prometheus metrics - should be protected in production
+  metrics_endpoint: [
+    # Set to false to disable the endpoint entirely
+    enabled: true,
+    # Require admin token authentication (X-Admin-Token header or ?token= query param)
+    require_auth: false,
+    # IP whitelist (empty = allow all if auth not required, or use auth)
+    # Example: ["127.0.0.1", "::1", "10.0.0.0/8"] for localhost + Prometheus scraper
+    ip_whitelist: ["127.0.0.1", "::1"]
   ]
 
 config :b1tpoti0n, ecto_repos: [B1tpoti0n.Persistence.Repo]

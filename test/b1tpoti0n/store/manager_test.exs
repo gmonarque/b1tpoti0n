@@ -32,10 +32,8 @@ defmodule B1tpoti0n.Store.ManagerTest do
     test "reflects newly created users after reload" do
       user = create_user()
 
-      # Before reload
       assert :error = Manager.lookup_passkey(user.passkey)
 
-      # After reload
       Manager.reload_passkeys()
       assert {:ok, _} = Manager.lookup_passkey(user.passkey)
     end
@@ -70,7 +68,6 @@ defmodule B1tpoti0n.Store.ManagerTest do
       Repo.insert!(%Whitelist{client_prefix: "-TR", name: "Transmission"})
       Manager.reload_whitelist()
 
-      # Different versions of Transmission should all match
       assert Manager.valid_client?("-TR1000-xxxxxxxxxxxx") == true
       assert Manager.valid_client?("-TR2000-xxxxxxxxxxxx") == true
       assert Manager.valid_client?("-TR9999-xxxxxxxxxxxx") == true
@@ -157,7 +154,6 @@ defmodule B1tpoti0n.Store.ManagerTest do
     end
 
     test "reflects actual table sizes" do
-      # Add some data
       _user1 = create_user()
       _user2 = create_user()
       Manager.reload_passkeys()

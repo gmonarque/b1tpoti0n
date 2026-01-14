@@ -7,7 +7,6 @@ defmodule B1tpoti0n.Stats.BufferTest do
   alias B1tpoti0n.Stats.Buffer
 
   setup do
-    # Flush any existing stats
     Buffer.flush()
     :ok
   end
@@ -88,7 +87,6 @@ defmodule B1tpoti0n.Stats.BufferTest do
       stats = Buffer.flush()
       assert length(stats.users) == 2
 
-      # Second flush should be empty
       stats2 = Buffer.flush()
       assert stats2.users == []
       assert stats2.torrents == []

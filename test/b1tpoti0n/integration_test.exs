@@ -13,7 +13,6 @@ defmodule B1tpoti0n.IntegrationTest do
   alias B1tpoti0n.Core.Bencode
 
   setup do
-    # Clean up all tables
     Repo.delete_all(Torrent)
     Repo.delete_all(Whitelist)
     Repo.delete_all(B1tpoti0n.Persistence.Schemas.BannedIp)
@@ -22,7 +21,6 @@ defmodule B1tpoti0n.IntegrationTest do
     Manager.reload_banned_ips()
     Buffer.flush()
 
-    # Whitelist Transmission client
     Repo.insert!(%Whitelist{client_prefix: "-TR", name: "Transmission"})
     Manager.reload_whitelist()
 
@@ -52,7 +50,7 @@ defmodule B1tpoti0n.IntegrationTest do
       "port" => to_string(Keyword.get(opts, :port, 6881)),
       "uploaded" => to_string(Keyword.get(opts, :uploaded, 0)),
       "downloaded" => to_string(Keyword.get(opts, :downloaded, 0)),
-      "left" => to_string(Keyword.get(opts, :left, 1000000)),
+      "left" => to_string(Keyword.get(opts, :left, 1_000_000)),
       "event" => Keyword.get(opts, :event, "started"),
       "compact" => "1"
     }
@@ -66,14 +64,14 @@ defmodule B1tpoti0n.IntegrationTest do
       {info_hash, _torrent} = create_torrent()
       peer_id = "-TR3000-" <> :crypto.strong_rand_bytes(12)
 
-      query = build_announce_query(info_hash, peer_id, event: "started", left: 1000000)
+      query = build_announce_query(info_hash, peer_id, event: "started", left: 1_000_000)
       conn = conn(:get, "/#{user.passkey}/announce?#{query}") |> call()
 
       assert conn.status == 200
       decoded = Bencode.decode(conn.resp_body)
       assert decoded["interval"] > 0
       assert decoded["incomplete"] == 1
-      assert is_binary(decoded["tracker id"])  # Announce key returned
+      assert is_binary(decoded["tracker id"])
     end
 
     test "peer joins as seeder and completes records snatch" do
@@ -81,15 +79,19 @@ defmodule B1tpoti0n.IntegrationTest do
       {info_hash, torrent} = create_torrent()
       peer_id = "-TR3000-" <> :crypto.strong_rand_bytes(12)
 
-      # Join as seeder with completed event
-      query = build_announce_query(info_hash, peer_id, event: "completed", left: 0, downloaded: 1000000)
+      query =
+        build_announce_query(info_hash, peer_id,
+          event: "completed",
+          left: 0,
+          downloaded: 1_000_000
+        )
+
       conn = conn(:get, "/#{user.passkey}/announce?#{query}") |> call()
 
       assert conn.status == 200
       decoded = Bencode.decode(conn.resp_body)
       assert decoded["complete"] == 1
 
-      # Verify snatch was recorded
       snatch = B1tpoti0n.Snatches.get_snatch(user.id, torrent.id)
       assert snatch != nil
     end
@@ -101,30 +103,38 @@ defmodule B1tpoti0n.IntegrationTest do
 
       {info_hash, _torrent} = create_torrent()
 
-      # Each user has different peer_id and port (peer is keyed by ip+port)
       peer_id1 = "-TR3000-" <> :crypto.strong_rand_bytes(12)
       peer_id2 = "-TR3001-" <> :crypto.strong_rand_bytes(12)
       peer_id3 = "-TR3002-" <> :crypto.strong_rand_bytes(12)
 
-      # User1 joins as seeder on port 6881
       query = build_announce_query(info_hash, peer_id1, event: "started", left: 0, port: 6881)
       conn1 = conn(:get, "/#{user1.passkey}/announce?#{query}") |> call()
       decoded1 = Bencode.decode(conn1.resp_body)
-      refute Map.has_key?(decoded1, "failure reason"), "First announce should succeed: #{inspect(decoded1)}"
 
-      # User2 joins as leecher on port 6882
-      query = build_announce_query(info_hash, peer_id2, event: "started", left: 1000000, port: 6882)
+      refute Map.has_key?(decoded1, "failure reason"),
+             "First announce should succeed: #{inspect(decoded1)}"
+
+      query =
+        build_announce_query(info_hash, peer_id2, event: "started", left: 1_000_000, port: 6882)
+
       conn2 = conn(:get, "/#{user2.passkey}/announce?#{query}") |> call()
       decoded2 = Bencode.decode(conn2.resp_body)
-      refute Map.has_key?(decoded2, "failure reason"), "Second announce should succeed: #{inspect(decoded2)}"
+
+      refute Map.has_key?(decoded2, "failure reason"),
+             "Second announce should succeed: #{inspect(decoded2)}"
+
       assert decoded2["complete"] == 1
       assert decoded2["incomplete"] == 1
 
-      # User3 joins as leecher on port 6883 and sees both
-      query = build_announce_query(info_hash, peer_id3, event: "started", left: 1000000, port: 6883)
+      query =
+        build_announce_query(info_hash, peer_id3, event: "started", left: 1_000_000, port: 6883)
+
       conn3 = conn(:get, "/#{user3.passkey}/announce?#{query}") |> call()
       decoded3 = Bencode.decode(conn3.resp_body)
-      refute Map.has_key?(decoded3, "failure reason"), "Third announce should succeed: #{inspect(decoded3)}"
+
+      refute Map.has_key?(decoded3, "failure reason"),
+             "Third announce should succeed: #{inspect(decoded3)}"
+
       assert decoded3["complete"] == 1
       assert decoded3["incomplete"] == 2
     end
@@ -138,24 +148,20 @@ defmodule B1tpoti0n.IntegrationTest do
 
       initial_uploaded = user.uploaded
 
-      # First announce - get tracker key
       query = build_announce_query(info_hash, peer_id, event: "started", uploaded: 0)
       conn1 = conn(:get, "/#{user.passkey}/announce?#{query}") |> call()
       decoded1 = Bencode.decode(conn1.resp_body)
       refute Map.has_key?(decoded1, "failure reason"), "First announce should succeed"
       tracker_key = decoded1["tracker id"]
 
-      # Second announce with uploaded stats (include tracker key)
-      query = build_announce_query(info_hash, peer_id, event: "", uploaded: 1000000)
+      query = build_announce_query(info_hash, peer_id, event: "", uploaded: 1_000_000)
       query = query <> "&key=#{tracker_key}"
       conn2 = conn(:get, "/#{user.passkey}/announce?#{query}") |> call()
       decoded2 = Bencode.decode(conn2.resp_body)
       refute Map.has_key?(decoded2, "failure reason"), "Second announce should succeed"
 
-      # Force flush stats
       Collector.force_flush()
 
-      # Check user stats were updated
       updated_user = Repo.get!(User, user.id)
       assert updated_user.uploaded > initial_uploaded
     end
@@ -167,29 +173,24 @@ defmodule B1tpoti0n.IntegrationTest do
       {info_hash, torrent} = create_torrent()
       peer_id = "-TR3000-" <> :crypto.strong_rand_bytes(12)
 
-      # Set 2x upload multiplier on torrent
       B1tpoti0n.Torrents.set_multipliers(torrent.id, 2.0, 1.0)
 
-      # First announce - get tracker key
       query = build_announce_query(info_hash, peer_id, event: "started", uploaded: 0)
       conn1 = conn(:get, "/#{user.passkey}/announce?#{query}") |> call()
       decoded1 = Bencode.decode(conn1.resp_body)
       refute Map.has_key?(decoded1, "failure reason"), "First announce should succeed"
       tracker_key = decoded1["tracker id"]
 
-      # Second announce with upload (include tracker key)
-      query = build_announce_query(info_hash, peer_id, event: "", uploaded: 1000000)
+      query = build_announce_query(info_hash, peer_id, event: "", uploaded: 1_000_000)
       query = query <> "&key=#{tracker_key}"
       conn2 = conn(:get, "/#{user.passkey}/announce?#{query}") |> call()
       decoded2 = Bencode.decode(conn2.resp_body)
       refute Map.has_key?(decoded2, "failure reason"), "Second announce should succeed"
 
-      # Flush and check
       Collector.force_flush()
       updated_user = Repo.get!(User, user.id)
 
-      # Should have 2x the upload credit
-      assert updated_user.uploaded == 2000000
+      assert updated_user.uploaded == 2_000_000
     end
 
     test "freeleech zeros download charge" do
@@ -197,28 +198,23 @@ defmodule B1tpoti0n.IntegrationTest do
       {info_hash, torrent} = create_torrent()
       peer_id = "-TR3000-" <> :crypto.strong_rand_bytes(12)
 
-      # Enable freeleech
       B1tpoti0n.Torrents.set_freeleech(torrent.id, true)
 
-      # First announce - get tracker key
       query = build_announce_query(info_hash, peer_id, event: "started", downloaded: 0)
       conn1 = conn(:get, "/#{user.passkey}/announce?#{query}") |> call()
       decoded1 = Bencode.decode(conn1.resp_body)
       refute Map.has_key?(decoded1, "failure reason"), "First announce should succeed"
       tracker_key = decoded1["tracker id"]
 
-      # Second announce with download (include tracker key)
-      query = build_announce_query(info_hash, peer_id, event: "", downloaded: 1000000, left: 0)
+      query = build_announce_query(info_hash, peer_id, event: "", downloaded: 1_000_000, left: 0)
       query = query <> "&key=#{tracker_key}"
       conn2 = conn(:get, "/#{user.passkey}/announce?#{query}") |> call()
       decoded2 = Bencode.decode(conn2.resp_body)
       refute Map.has_key?(decoded2, "failure reason"), "Second announce should succeed"
 
-      # Flush and check
       Collector.force_flush()
       updated_user = Repo.get!(User, user.id)
 
-      # Should have zero download counted
       assert updated_user.downloaded == 0
     end
   end
@@ -232,20 +228,24 @@ defmodule B1tpoti0n.IntegrationTest do
       peer_id1 = "-TR3000-" <> :crypto.strong_rand_bytes(12)
       peer_id2 = "-TR3001-" <> :crypto.strong_rand_bytes(12)
 
-      # Add a seeder on port 6881
       query = build_announce_query(info_hash, peer_id1, event: "started", left: 0, port: 6881)
       conn1 = conn(:get, "/#{user1.passkey}/announce?#{query}") |> call()
       decoded1 = Bencode.decode(conn1.resp_body)
       refute Map.has_key?(decoded1, "failure reason"), "Seeder announce should succeed"
 
-      # Add a leecher on port 6882
-      query = build_announce_query(info_hash, peer_id2, event: "started", left: 1000000, port: 6882)
+      query =
+        build_announce_query(info_hash, peer_id2, event: "started", left: 1_000_000, port: 6882)
+
       conn2 = conn(:get, "/#{user2.passkey}/announce?#{query}") |> call()
       decoded2 = Bencode.decode(conn2.resp_body)
       refute Map.has_key?(decoded2, "failure reason"), "Leecher announce should succeed"
 
-      # Scrape
-      encoded_hash = info_hash |> :binary.bin_to_list() |> Enum.map(&URI.encode_www_form(<<&1>>)) |> Enum.join()
+      encoded_hash =
+        info_hash
+        |> :binary.bin_to_list()
+        |> Enum.map(&URI.encode_www_form(<<&1>>))
+        |> Enum.join()
+
       conn = conn(:get, "/#{user1.passkey}/scrape?info_hash=#{encoded_hash}") |> call()
 
       assert conn.status == 200
@@ -280,14 +280,14 @@ defmodule B1tpoti0n.IntegrationTest do
       conn = conn(:get, "/#{user.passkey}/announce?#{query}") |> call()
 
       decoded = Bencode.decode(conn.resp_body)
-      assert decoded["failure reason"] =~ "whitelisted"
+      assert decoded["failure reason"] =~ "Not authorized"
     end
 
     test "missing required parameters are rejected" do
       user = create_user_with_passkey()
 
-      # Missing info_hash
-      conn = conn(:get, "/#{user.passkey}/announce?port=6881&uploaded=0&downloaded=0&left=0") |> call()
+      conn =
+        conn(:get, "/#{user.passkey}/announce?port=6881&uploaded=0&downloaded=0&left=0") |> call()
 
       decoded = Bencode.decode(conn.resp_body)
       assert Map.has_key?(decoded, "failure reason")

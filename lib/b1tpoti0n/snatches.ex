@@ -65,7 +65,8 @@ defmodule B1tpoti0n.Snatches do
           if snatch.last_announce_at do
             DateTime.diff(now, snatch.last_announce_at, :second)
             |> max(0)
-            |> min(7200)  # Cap at 2 hours to prevent abuse
+            # Cap at 2 hours to prevent abuse
+            |> min(7200)
           else
             0
           end
@@ -116,7 +117,8 @@ defmodule B1tpoti0n.Snatches do
   - `:seedtime` - Set seedtime (seconds)
   - `:hnr` - Set HnR flag (boolean)
   """
-  @spec update_snatch(integer(), keyword()) :: {:ok, Snatch.t()} | {:error, :not_found | Ecto.Changeset.t()}
+  @spec update_snatch(integer(), keyword()) ::
+          {:ok, Snatch.t()} | {:error, :not_found | Ecto.Changeset.t()}
   def update_snatch(id, opts) do
     case Repo.get(Snatch, id) do
       nil ->

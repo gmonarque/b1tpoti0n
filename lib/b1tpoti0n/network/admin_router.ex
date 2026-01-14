@@ -93,16 +93,18 @@ defmodule B1tpoti0n.Network.AdminRouter do
 
   plug(:cors)
   plug(:check_ip_whitelist)
+  plug(:check_rate_limit)
   plug(:authenticate)
   plug(:match)
+
   plug(Plug.Parsers,
     parsers: [:json],
     pass: ["application/json"],
     json_decoder: Jason
   )
+
   plug(:dispatch)
 
-  # Handle CORS preflight requests
   options _ do
     conn
     |> send_resp(204, "")
@@ -127,7 +129,6 @@ defmodule B1tpoti0n.Network.AdminRouter do
     json_response(conn, 200, %{data: data, count: length(data), success: true})
   end
 
-  # Search users by passkey
   get "/users/search" do
     query = conn.query_params["q"] || conn.query_params["passkey"] || ""
 
@@ -136,11 +137,13 @@ defmodule B1tpoti0n.Network.AdminRouter do
       data = Enum.map(users, &serialize_user/1)
       json_response(conn, 200, %{data: data, count: length(data), success: true})
     else
-      json_response(conn, 400, %{error: "Search query must be at least 3 characters", success: false})
+      json_response(conn, 400, %{
+        error: "Search query must be at least 3 characters",
+        success: false
+      })
     end
   end
 
-  # Get user by passkey (exact match)
   get "/users/passkey/:passkey" do
     case Admin.get_user_by_passkey(passkey) do
       nil ->
@@ -226,19 +229,24 @@ defmodule B1tpoti0n.Network.AdminRouter do
     end
   end
 
-  # Update user stats (uploaded/downloaded)
   put "/users/:id/stats" do
     uploaded = get_in(conn.body_params, ["uploaded"])
     downloaded = get_in(conn.body_params, ["downloaded"])
     operation = get_in(conn.body_params, ["operation"]) || "set"
 
     if operation not in ["set", "add", "subtract"] do
-      json_response(conn, 400, %{error: "Invalid operation. Must be: set, add, or subtract", success: false})
+      json_response(conn, 400, %{
+        error: "Invalid operation. Must be: set, add, or subtract",
+        success: false
+      })
     else
       case parse_id(id) do
         {:ok, user_id} ->
           op = String.to_existing_atom(operation)
-          stats = [uploaded: uploaded, downloaded: downloaded] |> Enum.reject(fn {_, v} -> is_nil(v) end)
+
+          stats =
+            [uploaded: uploaded, downloaded: downloaded]
+            |> Enum.reject(fn {_, v} -> is_nil(v) end)
 
           case Admin.update_user_stats(user_id, stats, operation: op) do
             {:ok, user} ->
@@ -258,7 +266,6 @@ defmodule B1tpoti0n.Network.AdminRouter do
     end
   end
 
-  # Toggle user can_leech status
   put "/users/:id/leech" do
     can_leech = get_in(conn.body_params, ["can_leech"])
 
@@ -285,7 +292,6 @@ defmodule B1tpoti0n.Network.AdminRouter do
     end
   end
 
-  # Clear HnR warnings for a user
   post "/users/:id/warnings/clear" do
     case parse_id(id) do
       {:ok, user_id} ->
@@ -344,7 +350,6 @@ defmodule B1tpoti0n.Network.AdminRouter do
   end
 
   get "/torrents/:id" do
-    # Support both numeric ID and hex info_hash
     result =
       case parse_id(id) do
         {:ok, torrent_id} -> Admin.get_torrent_by_id(torrent_id)
@@ -376,7 +381,6 @@ defmodule B1tpoti0n.Network.AdminRouter do
     end
   end
 
-  # Update torrent stats (admin correction)
   put "/torrents/:id/stats" do
     seeders = get_in(conn.body_params, ["seeders"])
     leechers = get_in(conn.body_params, ["leechers"])
@@ -554,14 +558,12 @@ defmodule B1tpoti0n.Network.AdminRouter do
     json_response(conn, 200, %{data: data, count: length(data), success: true})
   end
 
-  # List only active (non-expired) bans
   get "/bans/active" do
     bans = Admin.list_active_bans()
     data = Enum.map(bans, &serialize_ban/1)
     json_response(conn, 200, %{data: data, count: length(data), success: true})
   end
 
-  # Clean up expired bans
   post "/bans/cleanup" do
     {count, _} = Admin.cleanup_expired_bans()
     json_response(conn, 200, %{success: true, message: "Cleaned up #{count} expired bans"})
@@ -601,7 +603,6 @@ defmodule B1tpoti0n.Network.AdminRouter do
     end
   end
 
-  # Update an existing ban
   put "/bans/:ip" do
     reason = get_in(conn.body_params, ["reason"])
     duration = get_in(conn.body_params, ["duration"])
@@ -609,7 +610,11 @@ defmodule B1tpoti0n.Network.AdminRouter do
     opts =
       []
       |> then(fn o -> if reason, do: Keyword.put(o, :reason, reason), else: o end)
-      |> then(fn o -> if Map.has_key?(conn.body_params, "duration"), do: Keyword.put(o, :duration, duration), else: o end)
+      |> then(fn o ->
+        if Map.has_key?(conn.body_params, "duration"),
+          do: Keyword.put(o, :duration, duration),
+          else: o
+      end)
 
     case Admin.update_ban(ip, opts) do
       {:ok, ban} ->
@@ -643,7 +648,6 @@ defmodule B1tpoti0n.Network.AdminRouter do
     json_response(conn, 200, %{data: stats, success: true})
   end
 
-  # Trigger manual bonus calculation
   post "/bonus/calculate" do
     BonusCalculator.calculate_now()
     json_response(conn, 200, %{success: true, message: "Bonus calculation triggered"})
@@ -654,7 +658,10 @@ defmodule B1tpoti0n.Network.AdminRouter do
       {:ok, user_id} ->
         case BonusCalculator.get_points(user_id) do
           {:ok, points} ->
-            json_response(conn, 200, %{data: %{user_id: user_id, bonus_points: points}, success: true})
+            json_response(conn, 200, %{
+              data: %{user_id: user_id, bonus_points: points},
+              success: true
+            })
 
           {:error, :not_found} ->
             json_response(conn, 404, %{error: "User not found", success: false})
@@ -678,7 +685,11 @@ defmodule B1tpoti0n.Network.AdminRouter do
             case BonusCalculator.add_points(user_id, p) do
               :ok ->
                 {:ok, new_points} = BonusCalculator.get_points(user_id)
-                json_response(conn, 200, %{data: %{user_id: user_id, bonus_points: new_points}, success: true})
+
+                json_response(conn, 200, %{
+                  data: %{user_id: user_id, bonus_points: new_points},
+                  success: true
+                })
 
               {:error, :not_found} ->
                 json_response(conn, 404, %{error: "User not found", success: false})
@@ -706,7 +717,11 @@ defmodule B1tpoti0n.Network.AdminRouter do
             case BonusCalculator.remove_points(user_id, p) do
               :ok ->
                 {:ok, new_points} = BonusCalculator.get_points(user_id)
-                json_response(conn, 200, %{data: %{user_id: user_id, bonus_points: new_points}, success: true})
+
+                json_response(conn, 200, %{
+                  data: %{user_id: user_id, bonus_points: new_points},
+                  success: true
+                })
 
               {:error, :not_found} ->
                 json_response(conn, 404, %{error: "User not found", success: false})
@@ -740,6 +755,7 @@ defmodule B1tpoti0n.Network.AdminRouter do
             case BonusCalculator.redeem_points(user_id, p, conversion_rate) do
               {:ok, upload_credit} ->
                 {:ok, new_points} = BonusCalculator.get_points(user_id)
+
                 json_response(conn, 200, %{
                   data: %{
                     user_id: user_id,
@@ -782,7 +798,6 @@ defmodule B1tpoti0n.Network.AdminRouter do
     end
   end
 
-  # Get user's currently active peers (what they're seeding/leeching right now)
   get "/users/:id/peers" do
     case parse_id(id) do
       {:ok, user_id} ->
@@ -806,7 +821,6 @@ defmodule B1tpoti0n.Network.AdminRouter do
     end
   end
 
-  # Get a single snatch by ID
   get "/snatches/:id" do
     case parse_id(id) do
       {:ok, snatch_id} ->
@@ -823,7 +837,6 @@ defmodule B1tpoti0n.Network.AdminRouter do
     end
   end
 
-  # Update a snatch (seedtime, hnr flag)
   put "/snatches/:id" do
     seedtime = get_in(conn.body_params, ["seedtime"])
     hnr = get_in(conn.body_params, ["hnr"])
@@ -852,7 +865,6 @@ defmodule B1tpoti0n.Network.AdminRouter do
     end
   end
 
-  # Delete a snatch
   delete "/snatches/:id" do
     case parse_id(id) do
       {:ok, snatch_id} ->
@@ -869,13 +881,16 @@ defmodule B1tpoti0n.Network.AdminRouter do
     end
   end
 
-  # Clear HnR flag on a snatch
   delete "/snatches/:id/hnr" do
     case parse_id(id) do
       {:ok, snatch_id} ->
         case Snatches.clear_hnr(snatch_id) do
           {:ok, snatch} ->
-            json_response(conn, 200, %{data: serialize_snatch(snatch), success: true, message: "HnR flag cleared"})
+            json_response(conn, 200, %{
+              data: serialize_snatch(snatch),
+              success: true,
+              message: "HnR flag cleared"
+            })
 
           {:error, :not_found} ->
             json_response(conn, 404, %{error: "Snatch not found", success: false})
@@ -890,14 +905,12 @@ defmodule B1tpoti0n.Network.AdminRouter do
   # Hit-and-Run
   # =============================================================================
 
-  # List all HnR violations
   get "/hnr" do
     snatches = Snatches.list_hnr_snatches()
     data = Enum.map(snatches, &serialize_snatch/1)
     json_response(conn, 200, %{data: data, count: length(data), success: true})
   end
 
-  # Trigger manual HnR check
   post "/hnr/check" do
     HnrDetector.check_now()
     json_response(conn, 200, %{success: true, message: "HnR check triggered"})
@@ -907,13 +920,11 @@ defmodule B1tpoti0n.Network.AdminRouter do
   # System
   # =============================================================================
 
-  # Force flush stats buffer to DB
   post "/stats/flush" do
     StatsCollector.force_flush()
     json_response(conn, 200, %{success: true, message: "Stats buffer flushed to database"})
   end
 
-  # List active swarm workers
   get "/swarms" do
     workers = B1tpoti0n.Swarm.list_workers()
 
@@ -938,7 +949,12 @@ defmodule B1tpoti0n.Network.AdminRouter do
         }
       end)
 
-    json_response(conn, 200, %{data: data, count: length(data), total: length(workers), success: true})
+    json_response(conn, 200, %{
+      data: data,
+      count: length(data),
+      total: length(workers),
+      success: true
+    })
   end
 
   # =============================================================================
@@ -972,7 +988,10 @@ defmodule B1tpoti0n.Network.AdminRouter do
 
     conn
     |> Plug.Conn.put_resp_header("access-control-allow-origin", origin)
-    |> Plug.Conn.put_resp_header("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS")
+    |> Plug.Conn.put_resp_header(
+      "access-control-allow-methods",
+      "GET, POST, PUT, DELETE, OPTIONS"
+    )
     |> Plug.Conn.put_resp_header("access-control-allow-headers", "content-type, x-admin-token")
   end
 
@@ -988,7 +1007,6 @@ defmodule B1tpoti0n.Network.AdminRouter do
         if request_origin && request_origin in origins do
           request_origin
         else
-          # Return first configured origin as default (or empty to block)
           List.first(origins) || ""
         end
 
@@ -997,14 +1015,35 @@ defmodule B1tpoti0n.Network.AdminRouter do
     end
   end
 
+  defp check_rate_limit(conn, _opts) do
+    if conn.method == "OPTIONS" do
+      conn
+    else
+      client_ip = get_client_ip(conn)
+
+      case RateLimiter.check(client_ip, :admin_api) do
+        :ok ->
+          conn
+
+        {:error, :rate_limited, retry_after_ms} ->
+          conn
+          |> Plug.Conn.put_resp_header("retry-after", to_string(div(retry_after_ms, 1000) + 1))
+          |> json_response(429, %{
+            error: "Rate limit exceeded",
+            retry_after: div(retry_after_ms, 1000) + 1,
+            success: false
+          })
+          |> Plug.Conn.halt()
+      end
+    end
+  end
+
   defp check_ip_whitelist(conn, _opts) do
-    # Allow preflight requests through
     if conn.method == "OPTIONS" do
       conn
     else
       whitelist = Application.get_env(:b1tpoti0n, :admin_api_ip_whitelist, [])
 
-      # Empty whitelist = no restriction
       if whitelist == [] do
         conn
       else
@@ -1014,10 +1053,7 @@ defmodule B1tpoti0n.Network.AdminRouter do
           conn
         else
           conn
-          |> json_response(403, %{
-            error: "Access denied - IP not in whitelist",
-            success: false
-          })
+          |> json_response(404, %{error: "Not found", success: false})
           |> Plug.Conn.halt()
         end
       end
@@ -1025,23 +1061,26 @@ defmodule B1tpoti0n.Network.AdminRouter do
   end
 
   defp get_client_ip(conn) do
-    # Check X-Forwarded-For header first (for reverse proxy setups)
-    forwarded_for =
-      conn
-      |> Plug.Conn.get_req_header("x-forwarded-for")
-      |> List.first()
+    trust_xff = Application.get_env(:b1tpoti0n, :trust_x_forwarded_for, false)
 
-    case forwarded_for do
-      nil ->
-        # Use direct connection IP
-        conn.remote_ip |> :inet.ntoa() |> to_string()
-
-      header ->
-        # Take the first IP from X-Forwarded-For (original client)
-        header
-        |> String.split(",")
+    if trust_xff do
+      forwarded_for =
+        conn
+        |> Plug.Conn.get_req_header("x-forwarded-for")
         |> List.first()
-        |> String.trim()
+
+      case forwarded_for do
+        nil ->
+          conn.remote_ip |> :inet.ntoa() |> to_string()
+
+        header ->
+          header
+          |> String.split(",")
+          |> List.first()
+          |> String.trim()
+      end
+    else
+      conn.remote_ip |> :inet.ntoa() |> to_string()
     end
   end
 
@@ -1053,10 +1092,7 @@ defmodule B1tpoti0n.Network.AdminRouter do
 
       if is_nil(admin_token) or admin_token == "" do
         conn
-        |> json_response(503, %{
-          error: "Admin API disabled - configure admin_token to enable",
-          success: false
-        })
+        |> json_response(404, %{error: "Not found", success: false})
         |> Plug.Conn.halt()
       else
         request_token =
@@ -1064,7 +1100,7 @@ defmodule B1tpoti0n.Network.AdminRouter do
           |> Plug.Conn.get_req_header("x-admin-token")
           |> List.first()
 
-        if request_token == admin_token do
+        if request_token && Plug.Crypto.secure_compare(request_token, admin_token) do
           conn
         else
           conn
@@ -1172,8 +1208,6 @@ defmodule B1tpoti0n.Network.AdminRouter do
 
   defp format_bytes(bytes), do: "#{bytes} B"
 
-  # Parse duration in seconds into a DateTime
-  # e.g., 3600 = 1 hour from now, 86400 = 1 day from now
   defp parse_duration(nil), do: nil
 
   defp parse_duration(seconds) when is_integer(seconds) and seconds > 0 do

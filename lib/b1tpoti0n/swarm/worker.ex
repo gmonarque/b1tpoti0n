@@ -40,7 +40,9 @@ defmodule B1tpoti0n.Swarm.Worker do
   end
 
   def start_link({info_hash, torrent_id, :distributed}) do
-    GenServer.start_link(__MODULE__, {info_hash, torrent_id, :distributed}, name: via_tuple_distributed(info_hash))
+    GenServer.start_link(__MODULE__, {info_hash, torrent_id, :distributed},
+      name: via_tuple_distributed(info_hash)
+    )
   end
 
   @doc """
@@ -119,7 +121,10 @@ defmodule B1tpoti0n.Swarm.Worker do
   @impl true
   def handle_call({:announce, peer_data, num_want}, _from, state) do
     require Logger
-    Logger.info("Announce: event=#{peer_data.event} left=#{peer_data.left} up=#{peer_data.uploaded} down=#{peer_data.downloaded}")
+    # SECURITY: Use debug level to avoid exposing user activity patterns in production logs
+    Logger.debug(
+      "Announce: event=#{peer_data.event} left=#{peer_data.left} up=#{peer_data.uploaded} down=#{peer_data.downloaded}"
+    )
 
     key = {peer_data.ip, peer_data.port}
     now = System.system_time(:second)
@@ -133,8 +138,20 @@ defmodule B1tpoti0n.Swarm.Worker do
     current_downloaded = Map.get(peer_data, :downloaded, 0)
 
     # Calculate deltas (handle client restart where current < old)
-    upload_delta = max(0, current_uploaded - old_uploaded)
-    download_delta = max(0, current_downloaded - old_downloaded)
+    # SECURITY: Cap deltas at 100GB per announce to prevent stats inflation attacks
+    # Normal announces occur every ~30 minutes, so 100GB is extremely generous
+    # 100 GB
+    max_delta_per_announce = 100 * 1024 * 1024 * 1024
+
+    upload_delta =
+      (current_uploaded - old_uploaded)
+      |> max(0)
+      |> min(max_delta_per_announce)
+
+    download_delta =
+      (current_downloaded - old_downloaded)
+      |> max(0)
+      |> min(max_delta_per_announce)
 
     stats_delta = %{
       user_id: peer_data.user_id,
@@ -213,7 +230,11 @@ defmodule B1tpoti0n.Swarm.Worker do
 
             # Track completed event (increment both total and delta for DB sync)
             if peer_data.event == :completed do
-              %{state | completed: state.completed + 1, completed_delta: state.completed_delta + 1}
+              %{
+                state
+                | completed: state.completed + 1,
+                  completed_delta: state.completed_delta + 1
+              }
             else
               state
             end
@@ -259,7 +280,9 @@ defmodule B1tpoti0n.Swarm.Worker do
     expired_count = PeerStorage.cleanup_expired(state.info_hash, cutoff)
 
     if expired_count > 0 do
-      Logger.info("Cleaned up #{expired_count} expired peers for torrent #{Base.encode16(state.info_hash, case: :lower)}")
+      Logger.info(
+        "Cleaned up #{expired_count} expired peers for torrent #{Base.encode16(state.info_hash, case: :lower)}"
+      )
     end
 
     schedule_cleanup()

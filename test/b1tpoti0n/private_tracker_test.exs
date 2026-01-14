@@ -174,7 +174,8 @@ defmodule B1tpoti0n.PrivateTrackerTest do
 
       updated_snatch = Snatches.get_snatch(user.id, torrent.id)
       assert updated_snatch.seedtime > 0
-      assert updated_snatch.seedtime <= 7200  # Capped at 2 hours
+      # Capped at 2 hours
+      assert updated_snatch.seedtime <= 7200
     end
 
     test "list_user_snatches returns all user's snatches", %{user: user, torrent: torrent} do
@@ -226,9 +227,10 @@ defmodule B1tpoti0n.PrivateTrackerTest do
 
   describe "Snatch seed_ratio" do
     test "seed_ratio calculates correctly" do
-      snatch = %Snatch{seedtime: 36000}  # 10 hours
+      # 10 hours
+      snatch = %Snatch{seedtime: 36000}
       # 72 hours required = 259200 seconds
-      assert Snatch.seed_ratio(snatch, 259200) == 36000 / 259200
+      assert Snatch.seed_ratio(snatch, 259_200) == 36000 / 259_200
     end
 
     test "seed_ratio returns 0.0 when required_seedtime is 0" do

@@ -8,6 +8,21 @@ defmodule B1tpoti0n.Swarm.WorkerTest do
   alias B1tpoti0n.Persistence.Schemas.Torrent
 
   setup do
+    # Start the Registry if not already running (needed for Worker via_tuple)
+    case Registry.start_link(keys: :unique, name: B1tpoti0n.Swarm.Registry) do
+      {:ok, registry_pid} ->
+        on_exit(fn ->
+          try do
+            if Process.alive?(registry_pid), do: GenServer.stop(registry_pid, :normal, 100)
+          catch
+            :exit, _ -> :ok
+          end
+        end)
+
+      {:error, {:already_started, _}} ->
+        :ok
+    end
+
     # Create a torrent
     info_hash = :crypto.strong_rand_bytes(20)
     {:ok, torrent} = Repo.insert(%Torrent{info_hash: info_hash})
@@ -16,7 +31,11 @@ defmodule B1tpoti0n.Swarm.WorkerTest do
     {:ok, pid} = Worker.start_link({info_hash, torrent.id})
 
     on_exit(fn ->
-      if Process.alive?(pid), do: GenServer.stop(pid)
+      try do
+        if Process.alive?(pid), do: GenServer.stop(pid, :normal, 100)
+      catch
+        :exit, _ -> :ok
+      end
     end)
 
     {:ok, info_hash: info_hash, torrent: torrent, worker: pid}
@@ -174,33 +193,50 @@ defmodule B1tpoti0n.Swarm.WorkerTest do
       {_, _, _, _, announce_key} = Worker.announce(worker, peer, 50)
 
       assert is_binary(announce_key)
-      assert byte_size(announce_key) == 16  # 8 bytes hex encoded
+      # 8 bytes hex encoded
+      assert byte_size(announce_key) == 16
     end
 
     test "validates announce key for returning peer", %{worker: worker} do
-      peer = peer_data()
+      # Enable announce key enforcement for this test
+      old_val = Application.get_env(:b1tpoti0n, :enforce_announce_key, false)
+      Application.put_env(:b1tpoti0n, :enforce_announce_key, true)
 
-      # First announce gets a key
-      {_, _, _, _, announce_key} = Worker.announce(worker, peer, 50)
+      try do
+        peer = peer_data()
 
-      # Return with correct key
-      peer_with_key = %{peer | key: announce_key, event: :none}
-      assert {_, _, _, _, ^announce_key} = Worker.announce(worker, peer_with_key, 50)
+        # First announce gets a key
+        {_, _, _, _, announce_key} = Worker.announce(worker, peer, 50)
 
-      # Return with wrong key
-      peer_wrong_key = %{peer | key: "wrongkey12345678", event: :none}
-      assert {:error, :invalid_key} = Worker.announce(worker, peer_wrong_key, 50)
+        # Return with correct key
+        peer_with_key = %{peer | key: announce_key, event: :none}
+        assert {_, _, _, _, ^announce_key} = Worker.announce(worker, peer_with_key, 50)
+
+        # Return with wrong key
+        peer_wrong_key = %{peer | key: "wrongkey12345678", event: :none}
+        assert {:error, :invalid_key} = Worker.announce(worker, peer_wrong_key, 50)
+      after
+        Application.put_env(:b1tpoti0n, :enforce_announce_key, old_val)
+      end
     end
 
     test "requires key for returning peer", %{worker: worker} do
-      peer = peer_data()
+      # Enable announce key enforcement for this test
+      old_val = Application.get_env(:b1tpoti0n, :enforce_announce_key, false)
+      Application.put_env(:b1tpoti0n, :enforce_announce_key, true)
 
-      # First announce gets a key
-      {_, _, _, _, _announce_key} = Worker.announce(worker, peer, 50)
+      try do
+        peer = peer_data()
 
-      # Return without key
-      peer_no_key = %{peer | key: nil, event: :none}
-      assert {:error, :key_required} = Worker.announce(worker, peer_no_key, 50)
+        # First announce gets a key
+        {_, _, _, _, _announce_key} = Worker.announce(worker, peer, 50)
+
+        # Return without key
+        peer_no_key = %{peer | key: nil, event: :none}
+        assert {:error, :key_required} = Worker.announce(worker, peer_no_key, 50)
+      after
+        Application.put_env(:b1tpoti0n, :enforce_announce_key, old_val)
+      end
     end
   end
 

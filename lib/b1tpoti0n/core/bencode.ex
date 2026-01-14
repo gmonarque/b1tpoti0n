@@ -171,7 +171,14 @@ defmodule B1tpoti0n.Core.Bencode do
           compact :: boolean(),
           tracker_key :: binary() | nil
         ) :: binary()
-  def encode_announce_response(interval, seeders, leechers, peers, compact \\ true, tracker_key \\ nil)
+  def encode_announce_response(
+        interval,
+        seeders,
+        leechers,
+        peers,
+        compact \\ true,
+        tracker_key \\ nil
+      )
 
   def encode_announce_response(interval, seeders, leechers, peers, compact, tracker_key) do
     # Separate IPv4 and IPv6 peers

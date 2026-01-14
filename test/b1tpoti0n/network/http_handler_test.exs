@@ -36,6 +36,7 @@ defmodule B1tpoti0n.Network.HttpHandlerTest do
 
   defp valid_announce_params(info_hash) do
     peer_id = "-TR3000-" <> :crypto.strong_rand_bytes(12)
+
     %{
       "info_hash" => info_hash,
       "peer_id" => peer_id,
@@ -72,7 +73,7 @@ defmodule B1tpoti0n.Network.HttpHandlerTest do
 
       result = HttpHandler.process_announce(params, nil, {127, 0, 0, 1})
 
-      assert {:error, "Passkey required"} = result
+      assert {:error, "Invalid passkey"} = result
     end
 
     test "reject announce with invalid passkey length" do
@@ -110,7 +111,7 @@ defmodule B1tpoti0n.Network.HttpHandlerTest do
 
       result = HttpHandler.process_announce(params, user.passkey, {127, 0, 0, 1})
 
-      assert {:error, "Client not whitelisted"} = result
+      assert {:error, "Not authorized"} = result
     end
 
     test "reject announce for non-registered torrent in whitelist mode" do
@@ -124,7 +125,7 @@ defmodule B1tpoti0n.Network.HttpHandlerTest do
 
       try do
         result = HttpHandler.process_announce(params, user.passkey, {127, 0, 0, 1})
-        assert {:error, "Torrent not registered"} = result
+        assert {:error, "Unregistered torrent"} = result
       after
         Application.put_env(:b1tpoti0n, :enforce_torrent_whitelist, old_val)
       end
@@ -146,9 +147,11 @@ defmodule B1tpoti0n.Network.HttpHandlerTest do
     test "completed event records snatch" do
       user = create_user_with_passkey()
       {info_hash, torrent} = create_torrent()
-      params = valid_announce_params(info_hash)
-               |> Map.put("event", "completed")
-               |> Map.put("left", "0")
+
+      params =
+        valid_announce_params(info_hash)
+        |> Map.put("event", "completed")
+        |> Map.put("left", "0")
 
       result = HttpHandler.process_announce(params, user.passkey, {127, 0, 0, 1})
 
@@ -170,9 +173,11 @@ defmodule B1tpoti0n.Network.HttpHandlerTest do
       tracker_key = decoded_first["tracker id"]
 
       # Then stop with tracker key
-      stop_params = params
-                    |> Map.put("event", "stopped")
-                    |> Map.put("key", tracker_key)
+      stop_params =
+        params
+        |> Map.put("event", "stopped")
+        |> Map.put("key", tracker_key)
+
       {:ok, response} = HttpHandler.process_announce(stop_params, user.passkey, {127, 0, 0, 1})
 
       decoded = Bencode.decode(response)
@@ -193,7 +198,6 @@ defmodule B1tpoti0n.Network.HttpHandlerTest do
 
     test "reject leeching when user can_leech is false" do
       user = create_user_with_passkey()
-      # Disable leeching for user
       Repo.update!(User.changeset(user, %{can_leech: false}))
 
       {info_hash, _torrent} = create_torrent()
@@ -201,7 +205,7 @@ defmodule B1tpoti0n.Network.HttpHandlerTest do
 
       result = HttpHandler.process_announce(params, user.passkey, {127, 0, 0, 1})
 
-      assert {:error, "Leeching disabled - please contact staff"} = result
+      assert {:error, "Download not permitted"} = result
     end
 
     test "allow seeding even when can_leech is false" do
@@ -239,7 +243,7 @@ defmodule B1tpoti0n.Network.HttpHandlerTest do
 
       result = HttpHandler.process_scrape(params, nil)
 
-      assert {:error, "Passkey required"} = result
+      assert {:error, "Invalid passkey"} = result
     end
 
     test "reject scrape with invalid passkey" do
@@ -278,26 +282,33 @@ defmodule B1tpoti0n.Network.HttpHandlerTest do
     test "reject leeching when ratio too low" do
       user = create_user_with_passkey()
       # Set low ratio: downloaded a lot, uploaded little
-      Repo.update!(User.changeset(user, %{
-        uploaded: 100_000_000,      # 100 MB
-        downloaded: 10_000_000_000  # 10 GB = 0.01 ratio
-      }))
+      Repo.update!(
+        User.changeset(user, %{
+          # 100 MB
+          uploaded: 100_000_000,
+          # 10 GB = 0.01 ratio
+          downloaded: 10_000_000_000
+        })
+      )
 
       {info_hash, _torrent} = create_torrent()
       params = valid_announce_params(info_hash) |> Map.put("left", "1000")
 
       result = HttpHandler.process_announce(params, user.passkey, {127, 0, 0, 1})
 
-      assert {:error, "Ratio too low" <> _} = result
+      assert {:error, "Download not permitted"} = result
     end
 
     test "allow leeching for new users in grace period" do
       user = create_user_with_passkey()
       # New user with little download (under 5GB grace)
-      Repo.update!(User.changeset(user, %{
-        uploaded: 0,
-        downloaded: 1_000_000_000  # 1 GB
-      }))
+      Repo.update!(
+        User.changeset(user, %{
+          uploaded: 0,
+          # 1 GB
+          downloaded: 1_000_000_000
+        })
+      )
 
       {info_hash, _torrent} = create_torrent()
       params = valid_announce_params(info_hash) |> Map.put("left", "1000")

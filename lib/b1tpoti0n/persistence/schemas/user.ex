@@ -42,7 +42,15 @@ defmodule B1tpoti0n.Persistence.Schemas.User do
   @doc false
   def changeset(user, attrs) do
     user
-    |> cast(attrs, [:passkey, :uploaded, :downloaded, :hnr_warnings, :can_leech, :required_ratio, :bonus_points])
+    |> cast(attrs, [
+      :passkey,
+      :uploaded,
+      :downloaded,
+      :hnr_warnings,
+      :can_leech,
+      :required_ratio,
+      :bonus_points
+    ])
     |> validate_required([:passkey])
     |> validate_length(:passkey, is: 32)
     |> validate_number(:hnr_warnings, greater_than_or_equal_to: 0)

@@ -40,12 +40,21 @@ defmodule B1tpoti0n.Network.UdpHandlerTest do
   end
 
   # Build an announce request packet
-  defp build_announce_request(connection_id, transaction_id, info_hash, peer_id, downloaded, left, uploaded, event, port) do
+  defp build_announce_request(
+         connection_id,
+         transaction_id,
+         info_hash,
+         peer_id,
+         downloaded,
+         left,
+         uploaded,
+         event,
+         port
+       ) do
     # Event: 0=none, 1=completed, 2=started, 3=stopped
-    <<connection_id::64, @action_announce::32, transaction_id::32,
-      info_hash::binary-20, peer_id::binary-20,
-      downloaded::64, left::64, uploaded::64,
-      event::32, 0::32, 0::32, -1::signed-32, port::16>>
+    <<connection_id::64, @action_announce::32, transaction_id::32, info_hash::binary-20,
+      peer_id::binary-20, downloaded::64, left::64, uploaded::64, event::32, 0::32, 0::32,
+      -1::signed-32, port::16>>
   end
 
   # Build a scrape request packet
@@ -63,11 +72,13 @@ defmodule B1tpoti0n.Network.UdpHandlerTest do
       response = UdpHandler.handle_packet(request, {127, 0, 0, 1})
 
       assert is_binary(response)
-      assert byte_size(response) == 16  # Connect response size
+      # Connect response size
+      assert byte_size(response) == 16
 
       # Parse response
       <<action::32, recv_transaction_id::32, connection_id::64>> = response
-      assert action == 0  # Connect action
+      # Connect action
+      assert action == 0
       assert recv_transaction_id == transaction_id
       assert connection_id != 0
     end
@@ -86,26 +97,37 @@ defmodule B1tpoti0n.Network.UdpHandlerTest do
 
       # Build announce request
       announce_transaction_id = :rand.uniform(0xFFFFFFFF)
-      announce_req = build_announce_request(
-        connection_id,
-        announce_transaction_id,
-        info_hash,
-        peer_id,
-        0,      # downloaded
-        1000,   # left
-        0,      # uploaded
-        2,      # event: started
-        6881    # port
-      )
+
+      announce_req =
+        build_announce_request(
+          connection_id,
+          announce_transaction_id,
+          info_hash,
+          peer_id,
+          # downloaded
+          0,
+          # left
+          1000,
+          # uploaded
+          0,
+          # event: started
+          2,
+          # port
+          6881
+        )
 
       response = UdpHandler.handle_packet(announce_req, {127, 0, 0, 1})
 
       assert is_binary(response)
-      assert byte_size(response) >= 20  # Minimum announce response size
+      # Minimum announce response size
+      assert byte_size(response) >= 20
 
       # Parse response header
-      <<action::32, recv_transaction_id::32, _interval::32, _leechers::32, _seeders::32, _rest::binary>> = response
-      assert action == 1  # Announce action
+      <<action::32, recv_transaction_id::32, _interval::32, _leechers::32, _seeders::32,
+        _rest::binary>> = response
+
+      # Announce action
+      assert action == 1
       assert recv_transaction_id == announce_transaction_id
     end
 
@@ -114,28 +136,36 @@ defmodule B1tpoti0n.Network.UdpHandlerTest do
       peer_id = "-TR3000-" <> :crypto.strong_rand_bytes(12)
 
       # Use invalid connection_id
-      invalid_connection_id = 12345678
+      invalid_connection_id = 12_345_678
 
       announce_transaction_id = :rand.uniform(0xFFFFFFFF)
-      announce_req = build_announce_request(
-        invalid_connection_id,
-        announce_transaction_id,
-        info_hash,
-        peer_id,
-        0, 1000, 0, 2, 6881
-      )
+
+      announce_req =
+        build_announce_request(
+          invalid_connection_id,
+          announce_transaction_id,
+          info_hash,
+          peer_id,
+          0,
+          1000,
+          0,
+          2,
+          6881
+        )
 
       response = UdpHandler.handle_packet(announce_req, {127, 0, 0, 1})
 
       # Should return error response
       <<action::32, recv_transaction_id::32, _message::binary>> = response
-      assert action == 3  # Error action
+      # Error action
+      assert action == 3
       assert recv_transaction_id == announce_transaction_id
     end
 
     test "returns error for non-whitelisted client" do
       {info_hash, _torrent} = create_torrent()
-      peer_id = "-XX0000-" <> :crypto.strong_rand_bytes(12)  # Non-whitelisted
+      # Non-whitelisted
+      peer_id = "-XX0000-" <> :crypto.strong_rand_bytes(12)
 
       # Get valid connection_id
       connect_req = build_connect_request(:rand.uniform(0xFFFFFFFF))
@@ -143,18 +173,25 @@ defmodule B1tpoti0n.Network.UdpHandlerTest do
 
       # Announce with non-whitelisted client
       announce_transaction_id = :rand.uniform(0xFFFFFFFF)
-      announce_req = build_announce_request(
-        connection_id,
-        announce_transaction_id,
-        info_hash,
-        peer_id,
-        0, 1000, 0, 2, 6881
-      )
+
+      announce_req =
+        build_announce_request(
+          connection_id,
+          announce_transaction_id,
+          info_hash,
+          peer_id,
+          0,
+          1000,
+          0,
+          2,
+          6881
+        )
 
       response = UdpHandler.handle_packet(announce_req, {127, 0, 0, 1})
 
       <<action::32, _::binary>> = response
-      assert action == 3  # Error action
+      # Error action
+      assert action == 3
     end
   end
 
@@ -173,11 +210,13 @@ defmodule B1tpoti0n.Network.UdpHandlerTest do
       response = UdpHandler.handle_packet(scrape_req, {127, 0, 0, 1})
 
       assert is_binary(response)
-      assert byte_size(response) >= 8  # Minimum scrape response
+      # Minimum scrape response
+      assert byte_size(response) >= 8
 
       # Parse response
       <<action::32, recv_transaction_id::32, _rest::binary>> = response
-      assert action == 2  # Scrape action
+      # Scrape action
+      assert action == 2
       assert recv_transaction_id == scrape_transaction_id
     end
   end
@@ -205,7 +244,8 @@ defmodule B1tpoti0n.Network.UdpHandlerTest do
 
     test "returns nil for invalid action" do
       # Build a packet with invalid action
-      invalid_packet = <<0xFFFFFFFF::64, 99::32, 12345::32>>  # action 99 doesn't exist
+      # action 99 doesn't exist
+      invalid_packet = <<0xFFFFFFFF::64, 99::32, 12345::32>>
       response = UdpHandler.handle_packet(invalid_packet, {127, 0, 0, 1})
       assert is_nil(response)
     end

@@ -52,7 +52,8 @@ defmodule B1tpoti0n.Application do
         children ++
           [
             # libcluster for node discovery
-            {Cluster.Supervisor, [B1tpoti0n.Cluster.topology(), [name: B1tpoti0n.ClusterSupervisor]]},
+            {Cluster.Supervisor,
+             [B1tpoti0n.Cluster.topology(), [name: B1tpoti0n.ClusterSupervisor]]},
 
             # Horde distributed registry for swarm workers
             B1tpoti0n.Swarm.DistributedRegistry,

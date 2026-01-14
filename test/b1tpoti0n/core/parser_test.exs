@@ -30,7 +30,7 @@ defmodule B1tpoti0n.Core.ParserTest do
       assert request.port == 6881
       assert request.uploaded == 1000
       assert request.downloaded == 500
-      assert request.left == 100000
+      assert request.left == 100_000
       assert request.passkey == passkey
       assert request.ip == remote_ip
     end
@@ -39,35 +39,43 @@ defmodule B1tpoti0n.Core.ParserTest do
       base_params = valid_params()
 
       # Started event
-      {:ok, request} = Parser.parse_http_announce(
-        Map.put(base_params, "event", "started"),
-        nil,
-        {127, 0, 0, 1}
-      )
+      {:ok, request} =
+        Parser.parse_http_announce(
+          Map.put(base_params, "event", "started"),
+          nil,
+          {127, 0, 0, 1}
+        )
+
       assert request.event == :started
 
       # Completed event
-      {:ok, request} = Parser.parse_http_announce(
-        Map.put(base_params, "event", "completed"),
-        nil,
-        {127, 0, 0, 1}
-      )
+      {:ok, request} =
+        Parser.parse_http_announce(
+          Map.put(base_params, "event", "completed"),
+          nil,
+          {127, 0, 0, 1}
+        )
+
       assert request.event == :completed
 
       # Stopped event
-      {:ok, request} = Parser.parse_http_announce(
-        Map.put(base_params, "event", "stopped"),
-        nil,
-        {127, 0, 0, 1}
-      )
+      {:ok, request} =
+        Parser.parse_http_announce(
+          Map.put(base_params, "event", "stopped"),
+          nil,
+          {127, 0, 0, 1}
+        )
+
       assert request.event == :stopped
 
       # No event (default)
-      {:ok, request} = Parser.parse_http_announce(
-        base_params,
-        nil,
-        {127, 0, 0, 1}
-      )
+      {:ok, request} =
+        Parser.parse_http_announce(
+          base_params,
+          nil,
+          {127, 0, 0, 1}
+        )
+
       assert request.event == :none
     end
 
@@ -75,19 +83,23 @@ defmodule B1tpoti0n.Core.ParserTest do
       base_params = valid_params()
 
       # Explicit numwant
-      {:ok, request} = Parser.parse_http_announce(
-        Map.put(base_params, "numwant", "100"),
-        nil,
-        {127, 0, 0, 1}
-      )
+      {:ok, request} =
+        Parser.parse_http_announce(
+          Map.put(base_params, "numwant", "100"),
+          nil,
+          {127, 0, 0, 1}
+        )
+
       assert request.num_want == 100
 
       # Default numwant
-      {:ok, request} = Parser.parse_http_announce(
-        base_params,
-        nil,
-        {127, 0, 0, 1}
-      )
+      {:ok, request} =
+        Parser.parse_http_announce(
+          base_params,
+          nil,
+          {127, 0, 0, 1}
+        )
+
       assert request.num_want == 50
     end
 
@@ -95,27 +107,34 @@ defmodule B1tpoti0n.Core.ParserTest do
       base_params = valid_params()
 
       # Too high
-      {:ok, request} = Parser.parse_http_announce(
-        Map.put(base_params, "numwant", "500"),
-        nil,
-        {127, 0, 0, 1}
-      )
-      assert request.num_want == 50  # Falls back to default
+      {:ok, request} =
+        Parser.parse_http_announce(
+          Map.put(base_params, "numwant", "500"),
+          nil,
+          {127, 0, 0, 1}
+        )
+
+      # Falls back to default
+      assert request.num_want == 50
 
       # Negative
-      {:ok, request} = Parser.parse_http_announce(
-        Map.put(base_params, "numwant", "-10"),
-        nil,
-        {127, 0, 0, 1}
-      )
+      {:ok, request} =
+        Parser.parse_http_announce(
+          Map.put(base_params, "numwant", "-10"),
+          nil,
+          {127, 0, 0, 1}
+        )
+
       assert request.num_want == 50
 
       # Zero
-      {:ok, request} = Parser.parse_http_announce(
-        Map.put(base_params, "numwant", "0"),
-        nil,
-        {127, 0, 0, 1}
-      )
+      {:ok, request} =
+        Parser.parse_http_announce(
+          Map.put(base_params, "numwant", "0"),
+          nil,
+          {127, 0, 0, 1}
+        )
+
       assert request.num_want == 50
     end
 
@@ -127,26 +146,31 @@ defmodule B1tpoti0n.Core.ParserTest do
       assert request.compact == true
 
       # Compact explicitly enabled
-      {:ok, request} = Parser.parse_http_announce(
-        Map.put(base_params, "compact", "1"),
-        nil,
-        {127, 0, 0, 1}
-      )
+      {:ok, request} =
+        Parser.parse_http_announce(
+          Map.put(base_params, "compact", "1"),
+          nil,
+          {127, 0, 0, 1}
+        )
+
       assert request.compact == true
 
       # Compact disabled
-      {:ok, request} = Parser.parse_http_announce(
-        Map.put(base_params, "compact", "0"),
-        nil,
-        {127, 0, 0, 1}
-      )
+      {:ok, request} =
+        Parser.parse_http_announce(
+          Map.put(base_params, "compact", "0"),
+          nil,
+          {127, 0, 0, 1}
+        )
+
       assert request.compact == false
     end
 
     test "returns error for missing info_hash" do
       params = valid_params() |> Map.delete("info_hash")
 
-      assert {:error, "missing info_hash"} = Parser.parse_http_announce(params, nil, {127, 0, 0, 1})
+      assert {:error, "missing info_hash"} =
+               Parser.parse_http_announce(params, nil, {127, 0, 0, 1})
     end
 
     test "returns error for invalid info_hash length" do
@@ -190,13 +214,15 @@ defmodule B1tpoti0n.Core.ParserTest do
     test "returns error for missing uploaded" do
       params = valid_params() |> Map.delete("uploaded")
 
-      assert {:error, "missing uploaded"} = Parser.parse_http_announce(params, nil, {127, 0, 0, 1})
+      assert {:error, "missing uploaded"} =
+               Parser.parse_http_announce(params, nil, {127, 0, 0, 1})
     end
 
     test "returns error for missing downloaded" do
       params = valid_params() |> Map.delete("downloaded")
 
-      assert {:error, "missing downloaded"} = Parser.parse_http_announce(params, nil, {127, 0, 0, 1})
+      assert {:error, "missing downloaded"} =
+               Parser.parse_http_announce(params, nil, {127, 0, 0, 1})
     end
 
     test "returns error for missing left" do
@@ -209,10 +235,14 @@ defmodule B1tpoti0n.Core.ParserTest do
       params = %{
         "info_hash" => :crypto.strong_rand_bytes(20),
         "peer_id" => :crypto.strong_rand_bytes(20),
-        "port" => 6881,       # Integer
-        "uploaded" => 1000,   # Integer
-        "downloaded" => 500,  # Integer
-        "left" => 100000      # Integer
+        # Integer
+        "port" => 6881,
+        # Integer
+        "uploaded" => 1000,
+        # Integer
+        "downloaded" => 500,
+        # Integer
+        "left" => 100_000
       }
 
       assert {:ok, request} = Parser.parse_http_announce(params, nil, {127, 0, 0, 1})

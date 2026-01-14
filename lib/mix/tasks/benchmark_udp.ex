@@ -114,7 +114,21 @@ defmodule Mix.Tasks.BenchmarkUdp do
     case connect(socket, host_ip, port) do
       {:ok, connection_id} ->
         peer_id = :crypto.strong_rand_bytes(20)
-        result = run_announces(socket, host_ip, port, connection_id, info_hashes, peer_id, end_time, 0, 0, [])
+
+        result =
+          run_announces(
+            socket,
+            host_ip,
+            port,
+            connection_id,
+            info_hashes,
+            peer_id,
+            end_time,
+            0,
+            0,
+            []
+          )
+
         :gen_udp.close(socket)
         send(parent, {:done, self(), result})
 
@@ -144,7 +158,18 @@ defmodule Mix.Tasks.BenchmarkUdp do
     end
   end
 
-  defp run_announces(socket, host_ip, port, connection_id, info_hashes, peer_id, end_time, requests, errors, latencies) do
+  defp run_announces(
+         socket,
+         host_ip,
+         port,
+         connection_id,
+         info_hashes,
+         peer_id,
+         end_time,
+         requests,
+         errors,
+         latencies
+       ) do
     if System.monotonic_time(:millisecond) >= end_time do
       %{requests: requests, errors: errors, latencies: latencies}
     else
@@ -157,10 +182,32 @@ defmodule Mix.Tasks.BenchmarkUdp do
 
       case result do
         :ok ->
-          run_announces(socket, host_ip, port, connection_id, info_hashes, peer_id, end_time, requests + 1, errors, [latency | latencies])
+          run_announces(
+            socket,
+            host_ip,
+            port,
+            connection_id,
+            info_hashes,
+            peer_id,
+            end_time,
+            requests + 1,
+            errors,
+            [latency | latencies]
+          )
 
         :error ->
-          run_announces(socket, host_ip, port, connection_id, info_hashes, peer_id, end_time, requests + 1, errors + 1, latencies)
+          run_announces(
+            socket,
+            host_ip,
+            port,
+            connection_id,
+            info_hashes,
+            peer_id,
+            end_time,
+            requests + 1,
+            errors + 1,
+            latencies
+          )
       end
     end
   end
@@ -176,13 +223,20 @@ defmodule Mix.Tasks.BenchmarkUdp do
       transaction_id::32,
       info_hash::binary-size(20),
       peer_id::binary-size(20),
-      (uploaded * 1000)::64,  # downloaded
-      1_000_000_000::64,       # left
-      0::64,                   # uploaded
-      0::32,                   # event (none)
-      0::32,                   # IP (default)
-      0::32,                   # key
-      50::32-signed,           # num_want
+      # downloaded
+      uploaded * 1000::64,
+      # left
+      1_000_000_000::64,
+      # uploaded
+      0::64,
+      # event (none)
+      0::32,
+      # IP (default)
+      0::32,
+      # key
+      0::32,
+      # num_want
+      50::32-signed,
       client_port::16
     >>
 

@@ -22,12 +22,10 @@ defmodule B1tpoti0n.Network.HttpRouter do
   plug(:match)
   plug(:dispatch)
 
-  # Announce endpoint with passkey
   get "/:passkey/announce" do
     client_ip = get_client_ip_string(conn)
     start_time = System.monotonic_time(:millisecond)
 
-    # Check ban first, then rate limit
     with :ok <- check_ban(client_ip),
          :ok <- RateLimiter.check(client_ip, :announce) do
       remote_ip = get_remote_ip(conn)
@@ -70,12 +68,10 @@ defmodule B1tpoti0n.Network.HttpRouter do
     end
   end
 
-  # Scrape endpoint with passkey
   get "/:passkey/scrape" do
     client_ip = get_client_ip_string(conn)
     start_time = System.monotonic_time(:millisecond)
 
-    # Check ban first, then rate limit
     with :ok <- check_ban(client_ip),
          :ok <- RateLimiter.check(client_ip, :scrape) do
       params = parse_tracker_query(conn.query_string)
@@ -116,14 +112,12 @@ defmodule B1tpoti0n.Network.HttpRouter do
     end
   end
 
-  # Health check endpoint
   get "/health" do
     conn
     |> put_resp_content_type("application/json")
     |> send_resp(200, Jason.encode!(%{status: "ok"}))
   end
 
-  # Stats endpoint (internal)
   get "/stats" do
     case check_monitoring_access(conn, :stats_endpoint) do
       :ok ->
@@ -150,7 +144,6 @@ defmodule B1tpoti0n.Network.HttpRouter do
     end
   end
 
-  # Prometheus metrics endpoint
   get "/metrics" do
     case check_monitoring_access(conn, :metrics_endpoint) do
       :ok ->
@@ -165,16 +158,13 @@ defmodule B1tpoti0n.Network.HttpRouter do
     end
   end
 
-  # Admin REST API
   forward "/admin", to: B1tpoti0n.Network.AdminRouter
 
-  # WebSocket endpoint for real-time updates
   get "/ws" do
     admin_token = Application.get_env(:b1tpoti0n, :admin_token)
     query_params = URI.decode_query(conn.query_string || "")
     request_token = Map.get(query_params, "token")
 
-    # WebSocket requires authentication just like the REST admin API
     authenticated =
       admin_token != nil and
         admin_token != "" and
@@ -195,18 +185,12 @@ defmodule B1tpoti0n.Network.HttpRouter do
     end
   end
 
-  # Catch-all for unknown routes
   match _ do
     conn
     |> put_resp_content_type("text/plain")
     |> send_resp(404, Bencode.encode_error("Not found"))
   end
 
-  # --- Private Helpers ---
-
-  # Configurable Server header to prevent fingerprinting
-  # Configure via: config :b1tpoti0n, server_header: "nginx/1.24.0"
-  # Set to nil or false to disable
   defp add_server_header(conn, _opts) do
     case Application.get_env(:b1tpoti0n, :server_header, "Tracker/1.0") do
       nil -> conn

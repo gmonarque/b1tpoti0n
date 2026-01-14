@@ -10,11 +10,14 @@ defmodule B1tpoti0n.Hnr.DetectorTest do
   setup do
     # Enable HnR detection for tests
     old_config = Application.get_env(:b1tpoti0n, :hnr)
-    Application.put_env(:b1tpoti0n, :hnr, [
-      min_seedtime: 3600,       # 1 hour minimum
-      grace_period_days: 1,     # 1 day grace period
+
+    Application.put_env(:b1tpoti0n, :hnr,
+      # 1 hour minimum
+      min_seedtime: 3600,
+      # 1 day grace period
+      grace_period_days: 1,
       max_warnings: 3
-    ])
+    )
 
     on_exit(fn ->
       if old_config do
@@ -38,13 +41,14 @@ defmodule B1tpoti0n.Hnr.DetectorTest do
     seedtime = Keyword.get(opts, :seedtime, 0)
     hnr = Keyword.get(opts, :hnr, false)
 
-    {:ok, snatch} = Repo.insert(%Snatch{
-      user_id: user.id,
-      torrent_id: torrent.id,
-      completed_at: DateTime.truncate(completed_at, :second),
-      seedtime: seedtime,
-      hnr: hnr
-    })
+    {:ok, snatch} =
+      Repo.insert(%Snatch{
+        user_id: user.id,
+        torrent_id: torrent.id,
+        completed_at: DateTime.truncate(completed_at, :second),
+        seedtime: seedtime,
+        hnr: hnr
+      })
 
     snatch
   end
@@ -81,7 +85,7 @@ defmodule B1tpoti0n.Hnr.DetectorTest do
     end
 
     test "returns error for non-existent snatch" do
-      assert {:error, :not_found} = Detector.clear_hnr(999999)
+      assert {:error, :not_found} = Detector.clear_hnr(999_999)
     end
   end
 
@@ -98,7 +102,7 @@ defmodule B1tpoti0n.Hnr.DetectorTest do
     end
 
     test "returns error for non-existent user" do
-      assert {:error, :not_found} = Detector.clear_user_warnings(999999)
+      assert {:error, :not_found} = Detector.clear_user_warnings(999_999)
     end
   end
 
@@ -115,7 +119,8 @@ defmodule B1tpoti0n.Hnr.DetectorTest do
       # Manually trigger check via internal function
       # (We can't easily test the GenServer cast without waiting)
       send(Detector, :check)
-      Process.sleep(50)  # Give it time to process
+      # Give it time to process
+      Process.sleep(50)
 
       updated = Repo.get!(Snatch, snatch.id)
       assert updated.hnr == true
@@ -170,7 +175,8 @@ defmodule B1tpoti0n.Hnr.DetectorTest do
 
     test "disables leeching when max warnings exceeded" do
       user = create_user()
-      Repo.update!(User.changeset(user, %{hnr_warnings: 2}))  # 2 warnings already
+      # 2 warnings already
+      Repo.update!(User.changeset(user, %{hnr_warnings: 2}))
 
       torrent = create_torrent()
 

@@ -110,8 +110,8 @@ defmodule B1tpoti0n.Core.UdpProtocolTest do
         UdpProtocol.encode_announce_response(transaction_id, interval, leechers, seeders, peers)
 
       # Action (1) + transaction_id + interval + leechers + seeders + peers
-      assert <<1::32, ^transaction_id::32, ^interval::32, ^leechers::32, ^seeders::32,
-               192::8, 168::8, 1::8, 1::8, 6881::16, 10::8, 0::8, 0::8, 1::8, 6882::16>> = response
+      assert <<1::32, ^transaction_id::32, ^interval::32, ^leechers::32, ^seeders::32, 192::8,
+               168::8, 1::8, 1::8, 6881::16, 10::8, 0::8, 0::8, 1::8, 6882::16>> = response
     end
 
     test "encodes announce response with empty peers" do

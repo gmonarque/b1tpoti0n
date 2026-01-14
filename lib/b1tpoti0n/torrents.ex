@@ -98,7 +98,8 @@ defmodule B1tpoti0n.Torrents do
   Set torrent stats directly (for admin corrections).
   Unlike update_stats, this allows setting completed directly.
   """
-  @spec set_stats(integer(), keyword()) :: {:ok, Torrent.t()} | {:error, :not_found | Ecto.Changeset.t()}
+  @spec set_stats(integer(), keyword()) ::
+          {:ok, Torrent.t()} | {:error, :not_found | Ecto.Changeset.t()}
   def set_stats(torrent_id, stats) do
     case get(torrent_id) do
       nil ->
@@ -168,7 +169,10 @@ defmodule B1tpoti0n.Torrents do
 
       torrent ->
         torrent
-        |> Torrent.changeset(%{upload_multiplier: upload_mult, download_multiplier: download_mult})
+        |> Torrent.changeset(%{
+          upload_multiplier: upload_mult,
+          download_multiplier: download_mult
+        })
         |> Repo.update()
     end
   end

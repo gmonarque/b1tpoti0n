@@ -7,7 +7,6 @@ defmodule B1tpoti0n.MetricsTest do
   alias B1tpoti0n.Metrics
 
   setup do
-    # Reset metrics between tests
     Metrics.reset()
     :ok
   end
@@ -91,23 +90,20 @@ defmodule B1tpoti0n.MetricsTest do
 
       output = Metrics.export_prometheus()
 
-      # Check it's a string
       assert is_binary(output)
-
-      # Check for expected metrics
-      assert output =~ "b1tpoti0n_announces_total"
-      assert output =~ "b1tpoti0n_scrapes_total"
-      assert output =~ "b1tpoti0n_errors_total"
-      assert output =~ "b1tpoti0n_announce_duration_milliseconds"
-      assert output =~ "b1tpoti0n_users_total"
-      assert output =~ "b1tpoti0n_torrents_total"
+      assert output =~ "tracker_announces_total"
+      assert output =~ "tracker_scrapes_total"
+      assert output =~ "tracker_errors_total"
+      assert output =~ "tracker_announce_duration_milliseconds"
+      assert output =~ "tracker_users_total"
+      assert output =~ "tracker_torrents_total"
     end
 
     test "includes HELP and TYPE comments" do
       output = Metrics.export_prometheus()
 
-      assert output =~ "# HELP b1tpoti0n_announces_total"
-      assert output =~ "# TYPE b1tpoti0n_announces_total counter"
+      assert output =~ "# HELP tracker_announces_total"
+      assert output =~ "# TYPE tracker_announces_total counter"
     end
   end
 

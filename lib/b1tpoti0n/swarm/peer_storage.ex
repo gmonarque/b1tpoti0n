@@ -28,7 +28,8 @@ defmodule B1tpoti0n.Swarm.PeerStorage do
   @callback get_all_peers(info_hash()) :: %{peer_key() => peer_data()}
   @callback count_peers(info_hash()) :: non_neg_integer()
   @callback cleanup_expired(info_hash(), cutoff_time :: integer()) :: non_neg_integer()
-  @callback get_counts(info_hash()) :: {seeders :: non_neg_integer(), leechers :: non_neg_integer()}
+  @callback get_counts(info_hash()) ::
+              {seeders :: non_neg_integer(), leechers :: non_neg_integer()}
   @callback clear(info_hash()) :: :ok
 
   @doc """

@@ -274,7 +274,9 @@ defmodule B1tpoti0n.Bonus.Calculator do
         end)
 
       if users_awarded > 0 do
-        Logger.info("Bonus points awarded: #{users_awarded} users, #{Float.round(total_points_awarded, 2)} total points")
+        Logger.info(
+          "Bonus points awarded: #{users_awarded} users, #{Float.round(total_points_awarded, 2)} total points"
+        )
       end
 
       %{

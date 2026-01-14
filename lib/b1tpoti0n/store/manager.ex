@@ -17,8 +17,6 @@ defmodule B1tpoti0n.Store.Manager do
   @whitelist_table :b1tpoti0n_whitelist
   @banned_ips_table :b1tpoti0n_banned_ips
 
-  # --- Client API ---
-
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
@@ -41,7 +39,6 @@ defmodule B1tpoti0n.Store.Manager do
   """
   @spec valid_client?(binary()) :: boolean()
   def valid_client?(peer_id) when byte_size(peer_id) >= 3 do
-    # Most clients use "-XX" format (e.g., "-TR" for Transmission)
     prefix = binary_part(peer_id, 0, 3)
     :ets.member(@whitelist_table, prefix)
   end
@@ -57,7 +54,6 @@ defmodule B1tpoti0n.Store.Manager do
   def check_banned(ip) do
     now = DateTime.utc_now()
 
-    # Get all active bans and check if any match
     case :ets.tab2list(@banned_ips_table) do
       [] ->
         :ok
@@ -65,7 +61,6 @@ defmodule B1tpoti0n.Store.Manager do
       bans ->
         matching_ban =
           Enum.find(bans, fn {_id, banned_ip_struct} ->
-            # Check if not expired
             not_expired =
               is_nil(banned_ip_struct.expires_at) or
                 DateTime.compare(banned_ip_struct.expires_at, now) == :gt
@@ -116,11 +111,8 @@ defmodule B1tpoti0n.Store.Manager do
     }
   end
 
-  # --- Server Callbacks ---
-
   @impl true
   def init(_opts) do
-    # Create tables with read_concurrency for high read throughput
     :ets.new(@passkey_table, [
       :set,
       :named_table,
@@ -144,7 +136,6 @@ defmodule B1tpoti0n.Store.Manager do
 
     Logger.info("Store.Manager started, ETS tables created")
 
-    # Hydrate from database using handle_continue (non-blocking)
     {:ok, %{}, {:continue, :hydrate}}
   end
 
@@ -173,8 +164,6 @@ defmodule B1tpoti0n.Store.Manager do
     hydrate_banned_ips()
     {:reply, :ok, state}
   end
-
-  # --- Private Helpers ---
 
   defp hydrate_passkeys do
     alias B1tpoti0n.Persistence.Repo

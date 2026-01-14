@@ -79,7 +79,8 @@ defmodule B1tpoti0n.BonusTest do
 
       # Default conversion rate is 1GB per point
       assert {:ok, upload_credit} = Calculator.redeem_points(user.id, 5.0)
-      assert upload_credit == 5_000_000_000  # 5 GB
+      # 5 GB
+      assert upload_credit == 5_000_000_000
 
       # Check points were deducted
       assert {:ok, 5.0} = Calculator.get_points(user.id)
@@ -94,7 +95,8 @@ defmodule B1tpoti0n.BonusTest do
 
       # 500MB per point
       assert {:ok, upload_credit} = Calculator.redeem_points(user.id, 2.0, 500_000_000)
-      assert upload_credit == 1_000_000_000  # 1 GB
+      # 1 GB
+      assert upload_credit == 1_000_000_000
     end
 
     test "redeem_points returns error when insufficient points", %{user: user} do

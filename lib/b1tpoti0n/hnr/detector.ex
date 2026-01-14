@@ -148,7 +148,9 @@ defmodule B1tpoti0n.Hnr.Detector do
       grace_period_days = Keyword.get(hnr_config, :grace_period_days, 14)
       max_warnings = Keyword.get(hnr_config, :max_warnings, 3)
 
-      Logger.info("Running HnR check (min_seedtime=#{min_seedtime}s, grace=#{grace_period_days}d)")
+      Logger.info(
+        "Running HnR check (min_seedtime=#{min_seedtime}s, grace=#{grace_period_days}d)"
+      )
 
       # Find snatches that:
       # 1. Are past grace period
@@ -200,7 +202,9 @@ defmodule B1tpoti0n.Hnr.Detector do
             )
 
             if not can_leech do
-              Logger.warning("User #{user_id} disabled for leeching due to #{total_warnings} HnR warnings")
+              Logger.warning(
+                "User #{user_id} disabled for leeching due to #{total_warnings} HnR warnings"
+              )
             end
         end
       end)
@@ -208,10 +212,17 @@ defmodule B1tpoti0n.Hnr.Detector do
       warnings_issued = Enum.reduce(warnings_by_user, 0, fn {_, w}, acc -> acc + w end)
 
       if hnr_count > 0 do
-        Logger.info("HnR check complete: #{hnr_count} new HnRs, #{warnings_issued} warnings issued")
+        Logger.info(
+          "HnR check complete: #{hnr_count} new HnRs, #{warnings_issued} warnings issued"
+        )
       end
 
-      %{state | last_check: DateTime.utc_now(), hnr_count: hnr_count, warnings_issued: warnings_issued}
+      %{
+        state
+        | last_check: DateTime.utc_now(),
+          hnr_count: hnr_count,
+          warnings_issued: warnings_issued
+      }
     end
   end
 end

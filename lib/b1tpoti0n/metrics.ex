@@ -49,7 +49,11 @@ defmodule B1tpoti0n.Metrics do
   Record an announce request start.
   """
   def announce_start(metadata \\ %{}) do
-    :telemetry.execute([:b1tpoti0n, :announce, :start], %{system_time: System.system_time()}, metadata)
+    :telemetry.execute(
+      [:b1tpoti0n, :announce, :start],
+      %{system_time: System.system_time()},
+      metadata
+    )
   end
 
   @doc """
@@ -117,66 +121,70 @@ defmodule B1tpoti0n.Metrics do
 
   @doc """
   Export metrics in Prometheus text format.
+  Uses configurable namespace to avoid fingerprinting (default: "tracker").
+  Configure via: config :b1tpoti0n, metrics_namespace: "my_tracker"
   """
   def export_prometheus do
+    # SECURITY: Use generic namespace to prevent fingerprinting
+    ns = Application.get_env(:b1tpoti0n, :metrics_namespace, "tracker")
     metrics = get_metrics()
     gauges = metrics.gauges
 
     lines = [
       # Counters
-      "# HELP b1tpoti0n_announces_total Total number of announce requests",
-      "# TYPE b1tpoti0n_announces_total counter",
-      "b1tpoti0n_announces_total #{metrics.announces_total}",
+      "# HELP #{ns}_announces_total Total number of announce requests",
+      "# TYPE #{ns}_announces_total counter",
+      "#{ns}_announces_total #{metrics.announces_total}",
       "",
-      "# HELP b1tpoti0n_announces_by_event Announces by event type",
-      "# TYPE b1tpoti0n_announces_by_event counter",
-      format_labeled_counter("b1tpoti0n_announces_by_event", "event", metrics.announces_by_event),
+      "# HELP #{ns}_announces_by_event Announces by event type",
+      "# TYPE #{ns}_announces_by_event counter",
+      format_labeled_counter("#{ns}_announces_by_event", "event", metrics.announces_by_event),
       "",
-      "# HELP b1tpoti0n_scrapes_total Total number of scrape requests",
-      "# TYPE b1tpoti0n_scrapes_total counter",
-      "b1tpoti0n_scrapes_total #{metrics.scrapes_total}",
+      "# HELP #{ns}_scrapes_total Total number of scrape requests",
+      "# TYPE #{ns}_scrapes_total counter",
+      "#{ns}_scrapes_total #{metrics.scrapes_total}",
       "",
-      "# HELP b1tpoti0n_errors_total Total number of errors",
-      "# TYPE b1tpoti0n_errors_total counter",
-      "b1tpoti0n_errors_total #{metrics.errors_total}",
+      "# HELP #{ns}_errors_total Total number of errors",
+      "# TYPE #{ns}_errors_total counter",
+      "#{ns}_errors_total #{metrics.errors_total}",
       "",
-      "# HELP b1tpoti0n_errors_by_type Errors by type",
-      "# TYPE b1tpoti0n_errors_by_type counter",
-      format_labeled_counter("b1tpoti0n_errors_by_type", "type", metrics.errors_by_type),
+      "# HELP #{ns}_errors_by_type Errors by type",
+      "# TYPE #{ns}_errors_by_type counter",
+      format_labeled_counter("#{ns}_errors_by_type", "type", metrics.errors_by_type),
       "",
       # Histograms (simplified - just sum and count)
-      "# HELP b1tpoti0n_announce_duration_milliseconds Announce request duration",
-      "# TYPE b1tpoti0n_announce_duration_milliseconds summary",
-      format_histogram("b1tpoti0n_announce_duration_milliseconds", metrics.announce_duration),
+      "# HELP #{ns}_announce_duration_milliseconds Announce request duration",
+      "# TYPE #{ns}_announce_duration_milliseconds summary",
+      format_histogram("#{ns}_announce_duration_milliseconds", metrics.announce_duration),
       "",
-      "# HELP b1tpoti0n_scrape_duration_milliseconds Scrape request duration",
-      "# TYPE b1tpoti0n_scrape_duration_milliseconds summary",
-      format_histogram("b1tpoti0n_scrape_duration_milliseconds", metrics.scrape_duration),
+      "# HELP #{ns}_scrape_duration_milliseconds Scrape request duration",
+      "# TYPE #{ns}_scrape_duration_milliseconds summary",
+      format_histogram("#{ns}_scrape_duration_milliseconds", metrics.scrape_duration),
       "",
       # Gauges
-      "# HELP b1tpoti0n_users_total Total number of registered users",
-      "# TYPE b1tpoti0n_users_total gauge",
-      "b1tpoti0n_users_total #{gauges.users}",
+      "# HELP #{ns}_users_total Total number of registered users",
+      "# TYPE #{ns}_users_total gauge",
+      "#{ns}_users_total #{gauges.users}",
       "",
-      "# HELP b1tpoti0n_torrents_total Total number of registered torrents",
-      "# TYPE b1tpoti0n_torrents_total gauge",
-      "b1tpoti0n_torrents_total #{gauges.torrents}",
+      "# HELP #{ns}_torrents_total Total number of registered torrents",
+      "# TYPE #{ns}_torrents_total gauge",
+      "#{ns}_torrents_total #{gauges.torrents}",
       "",
-      "# HELP b1tpoti0n_swarms_active Number of active swarm workers",
-      "# TYPE b1tpoti0n_swarms_active gauge",
-      "b1tpoti0n_swarms_active #{gauges.swarms}",
+      "# HELP #{ns}_swarms_active Number of active swarm workers",
+      "# TYPE #{ns}_swarms_active gauge",
+      "#{ns}_swarms_active #{gauges.swarms}",
       "",
-      "# HELP b1tpoti0n_peers_active Number of active peers in memory",
-      "# TYPE b1tpoti0n_peers_active gauge",
-      "b1tpoti0n_peers_active #{gauges.peers}",
+      "# HELP #{ns}_peers_active Number of active peers in memory",
+      "# TYPE #{ns}_peers_active gauge",
+      "#{ns}_peers_active #{gauges.peers}",
       "",
-      "# HELP b1tpoti0n_passkeys_cached Number of passkeys in ETS cache",
-      "# TYPE b1tpoti0n_passkeys_cached gauge",
-      "b1tpoti0n_passkeys_cached #{gauges.passkeys_cached}",
+      "# HELP #{ns}_passkeys_cached Number of passkeys in cache",
+      "# TYPE #{ns}_passkeys_cached gauge",
+      "#{ns}_passkeys_cached #{gauges.passkeys_cached}",
       "",
-      "# HELP b1tpoti0n_banned_ips Number of banned IPs",
-      "# TYPE b1tpoti0n_banned_ips gauge",
-      "b1tpoti0n_banned_ips #{gauges.banned_ips}",
+      "# HELP #{ns}_banned_ips Number of banned IPs",
+      "# TYPE #{ns}_banned_ips gauge",
+      "#{ns}_banned_ips #{gauges.banned_ips}",
       ""
     ]
 

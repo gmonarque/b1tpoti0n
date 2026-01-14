@@ -18,7 +18,6 @@ defmodule B1tpoti0n.Network.HttpRouterTest do
     Manager.reload_whitelist()
     Manager.reload_banned_ips()
 
-    # Whitelist Transmission client
     Repo.insert!(%Whitelist{client_prefix: "-TR", name: "Transmission"})
     Manager.reload_whitelist()
 
@@ -54,16 +53,20 @@ defmodule B1tpoti0n.Network.HttpRouterTest do
       {info_hash, _torrent} = create_torrent()
       peer_id = "-TR3000-" <> :crypto.strong_rand_bytes(12)
 
-      query = URI.encode_query(%{
-        "info_hash" => info_hash,
-        "peer_id" => peer_id,
-        "port" => "6881",
-        "uploaded" => "0",
-        "downloaded" => "0",
-        "left" => "1000000",
-        "event" => "started",
-        "compact" => "1"
-      }, :rfc3986)
+      query =
+        URI.encode_query(
+          %{
+            "info_hash" => info_hash,
+            "peer_id" => peer_id,
+            "port" => "6881",
+            "uploaded" => "0",
+            "downloaded" => "0",
+            "left" => "1000000",
+            "event" => "started",
+            "compact" => "1"
+          },
+          :rfc3986
+        )
 
       conn =
         conn(:get, "/#{user.passkey}/announce?#{query}")
@@ -72,7 +75,6 @@ defmodule B1tpoti0n.Network.HttpRouterTest do
       assert conn.status == 200
       assert get_resp_header(conn, "content-type") == ["text/plain; charset=utf-8"]
 
-      # Response should be bencoded
       decoded = B1tpoti0n.Core.Bencode.decode(conn.resp_body)
       assert is_map(decoded)
       assert Map.has_key?(decoded, "interval")
@@ -83,20 +85,24 @@ defmodule B1tpoti0n.Network.HttpRouterTest do
       peer_id = "-TR3000-" <> :crypto.strong_rand_bytes(12)
       fake_passkey = String.duplicate("x", 32)
 
-      query = URI.encode_query(%{
-        "info_hash" => info_hash,
-        "peer_id" => peer_id,
-        "port" => "6881",
-        "uploaded" => "0",
-        "downloaded" => "0",
-        "left" => "1000000"
-      }, :rfc3986)
+      query =
+        URI.encode_query(
+          %{
+            "info_hash" => info_hash,
+            "peer_id" => peer_id,
+            "port" => "6881",
+            "uploaded" => "0",
+            "downloaded" => "0",
+            "left" => "1000000"
+          },
+          :rfc3986
+        )
 
       conn =
         conn(:get, "/#{fake_passkey}/announce?#{query}")
         |> call()
 
-      assert conn.status == 200  # Tracker returns 200 even for errors
+      assert conn.status == 200
 
       decoded = B1tpoti0n.Core.Bencode.decode(conn.resp_body)
       assert Map.has_key?(decoded, "failure reason")
@@ -107,24 +113,27 @@ defmodule B1tpoti0n.Network.HttpRouterTest do
       {info_hash, _torrent} = create_torrent()
       peer_id = "-TR3000-" <> :crypto.strong_rand_bytes(12)
 
-      # Ban the IP
       B1tpoti0n.Admin.ban_ip("127.0.0.1", "Test ban")
 
-      query = URI.encode_query(%{
-        "info_hash" => info_hash,
-        "peer_id" => peer_id,
-        "port" => "6881",
-        "uploaded" => "0",
-        "downloaded" => "0",
-        "left" => "1000000"
-      }, :rfc3986)
+      query =
+        URI.encode_query(
+          %{
+            "info_hash" => info_hash,
+            "peer_id" => peer_id,
+            "port" => "6881",
+            "uploaded" => "0",
+            "downloaded" => "0",
+            "left" => "1000000"
+          },
+          :rfc3986
+        )
 
       conn =
         conn(:get, "/#{user.passkey}/announce?#{query}")
         |> call()
 
       decoded = B1tpoti0n.Core.Bencode.decode(conn.resp_body)
-      assert decoded["failure reason"] =~ "Banned"
+      assert decoded["failure reason"] =~ "Not authorized"
     end
   end
 
@@ -133,7 +142,6 @@ defmodule B1tpoti0n.Network.HttpRouterTest do
       user = create_user_with_passkey()
       {info_hash, _torrent} = create_torrent()
 
-      # Encode info_hash for query string
       encoded_hash = encode_info_hash(info_hash)
       query = "info_hash=#{encoded_hash}"
 
@@ -180,10 +188,10 @@ defmodule B1tpoti0n.Network.HttpRouterTest do
       assert conn.status == 200
 
       body = Jason.decode!(conn.resp_body)
-      assert Map.has_key?(body, "ets")
-      assert Map.has_key?(body, "swarms")
-      assert Map.has_key?(body, "torrents")
-      assert Map.has_key?(body, "rate_limiter")
+      assert Map.has_key?(body, "cache")
+      assert Map.has_key?(body, "active_transfers")
+      assert Map.has_key?(body, "total_items")
+      assert Map.has_key?(body, "throttle")
     end
   end
 
@@ -193,7 +201,7 @@ defmodule B1tpoti0n.Network.HttpRouterTest do
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-type") == ["text/plain; version=0.0.4; charset=utf-8"]
-      assert conn.resp_body =~ "b1tpoti0n_"
+      assert conn.resp_body =~ "tracker_"
     end
   end
 
@@ -209,30 +217,40 @@ defmodule B1tpoti0n.Network.HttpRouterTest do
   end
 
   describe "X-Forwarded-For header handling" do
-    test "uses forwarded IP when present" do
+    test "uses forwarded IP when trust_x_forwarded_for is enabled" do
       user = create_user_with_passkey()
       {info_hash, _torrent} = create_torrent()
       peer_id = "-TR3000-" <> :crypto.strong_rand_bytes(12)
 
-      # Ban the forwarded IP
       B1tpoti0n.Admin.ban_ip("10.0.0.1", "Test ban")
 
-      query = URI.encode_query(%{
-        "info_hash" => info_hash,
-        "peer_id" => peer_id,
-        "port" => "6881",
-        "uploaded" => "0",
-        "downloaded" => "0",
-        "left" => "1000000"
-      }, :rfc3986)
+      old_val = Application.get_env(:b1tpoti0n, :trust_x_forwarded_for, false)
+      Application.put_env(:b1tpoti0n, :trust_x_forwarded_for, true)
 
-      conn =
-        conn(:get, "/#{user.passkey}/announce?#{query}")
-        |> put_req_header("x-forwarded-for", "10.0.0.1, 192.168.1.1")
-        |> call()
+      try do
+        query =
+          URI.encode_query(
+            %{
+              "info_hash" => info_hash,
+              "peer_id" => peer_id,
+              "port" => "6881",
+              "uploaded" => "0",
+              "downloaded" => "0",
+              "left" => "1000000"
+            },
+            :rfc3986
+          )
 
-      decoded = B1tpoti0n.Core.Bencode.decode(conn.resp_body)
-      assert decoded["failure reason"] =~ "Banned"
+        conn =
+          conn(:get, "/#{user.passkey}/announce?#{query}")
+          |> put_req_header("x-forwarded-for", "10.0.0.1, 192.168.1.1")
+          |> call()
+
+        decoded = B1tpoti0n.Core.Bencode.decode(conn.resp_body)
+        assert decoded["failure reason"] =~ "Not authorized"
+      after
+        Application.put_env(:b1tpoti0n, :trust_x_forwarded_for, old_val)
+      end
     end
   end
 end

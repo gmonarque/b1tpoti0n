@@ -32,13 +32,13 @@ defmodule B1tpoti0n.Network.UdpHandler do
   defp process_packet(data, client_ip, client_ip_string) do
     case UdpProtocol.parse_request(data) do
       {:ok, :connect, request} ->
-        handle_connect(request, client_ip_string)
+        handle_connect(request, client_ip, client_ip_string)
 
       {:ok, :announce, request} ->
         handle_announce(request, client_ip, client_ip_string)
 
       {:ok, :scrape, request} ->
-        handle_scrape(request, client_ip_string)
+        handle_scrape(request, client_ip, client_ip_string)
 
       {:error, reason} ->
         Logger.debug("UDP parse error: #{reason}")
@@ -46,13 +46,21 @@ defmodule B1tpoti0n.Network.UdpHandler do
     end
   end
 
-  defp handle_connect(%{transaction_id: transaction_id}, client_ip_string) do
+  defp handle_connect(%{transaction_id: transaction_id}, client_ip, client_ip_string) do
     # Rate limit connect requests
     case RateLimiter.check(client_ip_string, :announce) do
       :ok ->
-        connection_id = UdpServer.new_connection()
-        B1tpoti0n.Metrics.announce_stop(%{event: "udp_connect"}, 0)
-        UdpProtocol.encode_connect_response(transaction_id, connection_id)
+        # SECURITY: Connection ID is bound to client IP
+        case UdpServer.new_connection(client_ip) do
+          {:ok, connection_id} ->
+            B1tpoti0n.Metrics.announce_stop(%{event: "udp_connect"}, 0)
+            UdpProtocol.encode_connect_response(transaction_id, connection_id)
+
+          {:error, :too_many_connections} ->
+            Logger.warning("UDP connection limit reached, rejecting #{client_ip_string}")
+            # SECURITY: Generic error to prevent fingerprinting
+            UdpProtocol.encode_error_response(transaction_id, "Try again later")
+        end
 
       {:error, :rate_limited, _} ->
         B1tpoti0n.Metrics.error(:rate_limited)
@@ -64,8 +72,8 @@ defmodule B1tpoti0n.Network.UdpHandler do
     start_time = System.monotonic_time(:millisecond)
     %{transaction_id: transaction_id, connection_id: connection_id} = request
 
-    # Validate connection_id
-    unless UdpServer.valid_connection?(connection_id) do
+    # SECURITY: Validate connection_id is bound to this client IP
+    unless UdpServer.valid_connection?(connection_id, client_ip) do
       return_error(transaction_id, "Invalid connection_id")
     else
       # Rate limit
@@ -96,7 +104,8 @@ defmodule B1tpoti0n.Network.UdpHandler do
     # Check client whitelist
     unless Manager.valid_client?(peer_id) do
       B1tpoti0n.Metrics.error(:client_not_whitelisted)
-      return_error(transaction_id, "Client not whitelisted")
+      # SECURITY: Generic error to prevent fingerprinting
+      return_error(transaction_id, "Not authorized")
     else
       # Get or start worker
       case Swarm.get_or_start_worker(info_hash) do
@@ -131,22 +140,31 @@ defmodule B1tpoti0n.Network.UdpHandler do
               B1tpoti0n.Metrics.announce_stop(%{event: "udp_#{event_str}"}, duration)
 
               # Encode response
-              UdpProtocol.encode_announce_response(transaction_id, interval, leechers, seeders, peers)
+              UdpProtocol.encode_announce_response(
+                transaction_id,
+                interval,
+                leechers,
+                seeders,
+                peers
+              )
           end
 
         {:error, :not_registered} ->
           B1tpoti0n.Metrics.error(:not_registered)
-          return_error(transaction_id, "Torrent not registered")
+          # SECURITY: Generic error to prevent fingerprinting
+          return_error(transaction_id, "Not found")
       end
     end
   end
 
-  defp handle_scrape(request, client_ip_string) do
+  defp handle_scrape(request, client_ip, client_ip_string) do
     start_time = System.monotonic_time(:millisecond)
-    %{transaction_id: transaction_id, connection_id: connection_id, info_hashes: info_hashes} = request
 
-    # Validate connection_id
-    unless UdpServer.valid_connection?(connection_id) do
+    %{transaction_id: transaction_id, connection_id: connection_id, info_hashes: info_hashes} =
+      request
+
+    # SECURITY: Validate connection_id is bound to this client IP
+    unless UdpServer.valid_connection?(connection_id, client_ip) do
       return_error(transaction_id, "Invalid connection_id")
     else
       # Rate limit

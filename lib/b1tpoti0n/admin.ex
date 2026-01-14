@@ -230,7 +230,8 @@ defmodule B1tpoti0n.Admin do
   @doc """
   Clear all HnR warnings for a user and re-enable leeching.
   """
-  @spec clear_user_warnings(integer()) :: {:ok, User.t()} | {:error, :not_found | Ecto.Changeset.t()}
+  @spec clear_user_warnings(integer()) ::
+          {:ok, User.t()} | {:error, :not_found | Ecto.Changeset.t()}
   def clear_user_warnings(user_id) do
     case Repo.get(User, user_id) do
       nil ->
@@ -302,7 +303,8 @@ defmodule B1tpoti0n.Admin do
       iex> Admin.add_to_whitelist("-TR", "Transmission")
       {:ok, %Whitelist{}}
   """
-  @spec add_to_whitelist(String.t(), String.t()) :: {:ok, Whitelist.t()} | {:error, Ecto.Changeset.t()}
+  @spec add_to_whitelist(String.t(), String.t()) ::
+          {:ok, Whitelist.t()} | {:error, Ecto.Changeset.t()}
   def add_to_whitelist(prefix, name) do
     result =
       %Whitelist{}
@@ -359,7 +361,8 @@ defmodule B1tpoti0n.Admin do
       iex> Admin.ban_ip("10.0.0.0/8", "Internal network", duration: 3600)
       {:ok, %BannedIp{}}
   """
-  @spec ban_ip(String.t(), String.t(), keyword()) :: {:ok, BannedIp.t()} | {:error, Ecto.Changeset.t()}
+  @spec ban_ip(String.t(), String.t(), keyword()) ::
+          {:ok, BannedIp.t()} | {:error, Ecto.Changeset.t()}
   def ban_ip(ip, reason, opts \\ []) do
     duration = Keyword.get(opts, :duration)
 
@@ -435,7 +438,8 @@ defmodule B1tpoti0n.Admin do
   - `:reason` - New reason for the ban
   - `:duration` - New duration in seconds from now (nil = permanent)
   """
-  @spec update_ban(String.t(), keyword()) :: {:ok, BannedIp.t()} | {:error, :not_found | Ecto.Changeset.t()}
+  @spec update_ban(String.t(), keyword()) ::
+          {:ok, BannedIp.t()} | {:error, :not_found | Ecto.Changeset.t()}
   def update_ban(ip, opts) do
     case Repo.get_by(BannedIp, ip: ip) do
       nil ->

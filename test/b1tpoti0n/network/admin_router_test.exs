@@ -237,7 +237,11 @@ defmodule B1tpoti0n.Network.AdminRouterTest do
       torrent = create_torrent()
 
       conn =
-        conn(:put, "/torrents/#{torrent.id}/stats", Jason.encode!(%{seeders: 10, leechers: 5, completed: 100}))
+        conn(
+          :put,
+          "/torrents/#{torrent.id}/stats",
+          Jason.encode!(%{seeders: 10, leechers: 5, completed: 100})
+        )
         |> call()
 
       assert conn.status == 200
