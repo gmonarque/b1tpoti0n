@@ -113,12 +113,36 @@ defmodule B1tpoti0n.Application do
         keyfile = Application.get_env(:b1tpoti0n, :https_keyfile)
 
         if certfile && keyfile do
+          # TLS hardening: enforce modern TLS versions and secure ciphers
+          # Filter TLS 1.2 ciphers to only include ECDHE key exchange (forward secrecy)
+          tls12_ciphers =
+            :ssl.cipher_suites(:default, :"tlsv1.2")
+            |> Enum.filter(fn cipher ->
+              key_exchange = Map.get(cipher, :key_exchange)
+              key_exchange in [:ecdhe_rsa, :ecdhe_ecdsa]
+            end)
+
+          # TLS 1.3 ciphers all have forward secrecy by default
+          tls13_ciphers = :ssl.cipher_suites(:default, :"tlsv1.3")
+
           https_opts = [
             scheme: :https,
             plug: B1tpoti0n.Network.HttpRouter,
             port: https_port,
             certfile: certfile,
-            keyfile: keyfile
+            keyfile: keyfile,
+            thousand_island_options: [
+              transport_options: [
+                # Only allow TLS 1.2 and 1.3
+                versions: [:"tlsv1.2", :"tlsv1.3"],
+                # Use secure cipher suites with forward secrecy
+                ciphers: tls13_ciphers ++ tls12_ciphers,
+                # Prefer server cipher order
+                honor_cipher_order: true,
+                # Disable session tickets for forward secrecy
+                session_tickets: :disabled
+              ]
+            ]
           ]
 
           children ++ [{Bandit, https_opts}]
