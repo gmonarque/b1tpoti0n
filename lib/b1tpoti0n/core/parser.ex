@@ -42,7 +42,7 @@ defmodule B1tpoti0n.Core.Parser do
   def parse_http_announce(params, passkey, remote_ip) do
     with {:ok, info_hash} <- get_binary_param(params, "info_hash", 20),
          {:ok, peer_id} <- get_binary_param(params, "peer_id", 20),
-         {:ok, port} <- get_integer_param(params, "port"),
+         {:ok, port} <- get_port_param(params, "port"),
          {:ok, uploaded} <- get_integer_param(params, "uploaded"),
          {:ok, downloaded} <- get_integer_param(params, "downloaded"),
          {:ok, left} <- get_integer_param(params, "left") do
@@ -117,6 +117,25 @@ defmodule B1tpoti0n.Core.Parser do
         end
 
       value when is_integer(value) and value >= 0 ->
+        {:ok, value}
+
+      _ ->
+        {:error, "invalid #{key}"}
+    end
+  end
+
+  defp get_port_param(params, key) do
+    case Map.get(params, key) do
+      nil ->
+        {:error, "missing #{key}"}
+
+      value when is_binary(value) ->
+        case Integer.parse(value) do
+          {n, ""} when n >= 1 and n <= 65535 -> {:ok, n}
+          _ -> {:error, "invalid #{key}"}
+        end
+
+      value when is_integer(value) and value >= 1 and value <= 65535 ->
         {:ok, value}
 
       _ ->
