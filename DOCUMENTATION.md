@@ -37,10 +37,12 @@ Private BitTorrent tracker in Elixir supporting HTTP (BEP 3) and UDP (BEP 15) pr
 
 ### Anti-Abuse
 - Client whitelist (by peer_id prefix)
-- IP banning with optional expiration
+- IP banning with optional expiration and CIDR support
 - Rate limiting (token bucket per IP)
 - Hit-and-Run detection
-- Peer connection verification
+- Peer connection verification (with private IP range blocking)
+- Port validation (blocks privileged ports and invalid ranges)
+- Multiplier caps (max 10x upload, max 1x download) to prevent abuse
 
 ### Bonus System
 - Points earned based on seeding time and ratio
@@ -57,8 +59,16 @@ Private BitTorrent tracker in Elixir supporting HTTP (BEP 3) and UDP (BEP 15) pr
 
 ### Clustering (Optional)
 - Horde distributed supervision
-- libcluster node discovery
+- libcluster node discovery (Gossip, EPMD, Kubernetes strategies)
 - Redis distributed cache and peer storage
+
+### Security
+- TLS 1.2+ with secure cipher suites and forward secrecy
+- Admin API IP whitelist
+- Stats/metrics endpoint protection (auth or IP whitelist)
+- X-Forwarded-For trust configuration (for reverse proxy setups)
+- Constant-time token comparison (timing attack prevention)
+- Private IP blocking in peer verification (SSRF prevention)
 
 ---
 
@@ -159,22 +169,25 @@ Edit `config/config.exs` to change defaults. All options with their defaults:
 ```elixir
 config :b1tpoti0n,
   # --- Network ---
-  http_port: 8080,                    # HTTP port (nil to disable)
+  http_port: 8081,                    # HTTP port (nil to disable)
   https_port: nil,                    # HTTPS port (nil to disable)
   https_certfile: nil,                # Path to TLS certificate
   https_keyfile: nil,                 # Path to TLS private key
   https_only: false,                  # Disable HTTP when HTTPS enabled
-  udp_port: nil,                      # UDP tracker port (nil to disable)
+  udp_port: nil,                      # UDP tracker port (nil to disable, BEP 15)
   udp_connection_timeout: 120,        # UDP connection ID validity (seconds)
 
   # --- Announce ---
   announce_interval: 1800,            # Interval returned to clients (seconds)
   announce_jitter: 0.1,               # Jitter factor (0.0-1.0, prevents thundering herd)
+  enforce_announce_key: false,        # Require tracker-issued announce key (some clients incompatible)
 
   # --- Access Control ---
   enforce_torrent_whitelist: false,   # Require torrents to be pre-registered
   admin_token: nil,                   # Admin API token (nil = disabled)
-  cors_origins: "*",                  # CORS: "*", "https://example.com", or list
+  cors_origins: [],                   # CORS: [], "*", "https://example.com", or list
+  trust_x_forwarded_for: false,       # Trust X-Forwarded-For header (only behind trusted proxy)
+  admin_api_ip_whitelist: [],         # IPs allowed to access admin API (empty = all)
 
   # --- Rate Limiting ---
   rate_limiting_enabled: true,
@@ -223,7 +236,7 @@ config :b1tpoti0n,
 
   # --- Clustering (multi-node) ---
   cluster: [
-    enabled: false,
+    enabled: true,                    # Enable Horde distributed supervision
     strategy: Cluster.Strategy.Gossip,
     config: [
       port: 45892,
@@ -231,6 +244,20 @@ config :b1tpoti0n,
       multicast_addr: "230.1.1.251",
       multicast_ttl: 1
     ]
+  ],
+
+  # --- Stats Endpoint Protection ---
+  stats_endpoint: [
+    enabled: true,                    # Set to false to disable /stats
+    require_auth: false,              # Require admin token
+    ip_whitelist: ["127.0.0.1", "::1"] # IPs allowed (empty = all if no auth)
+  ],
+
+  # --- Metrics Endpoint Protection ---
+  metrics_endpoint: [
+    enabled: true,                    # Set to false to disable /metrics
+    require_auth: false,              # Require admin token
+    ip_whitelist: ["127.0.0.1", "::1"] # IPs allowed (empty = all if no auth)
   ]
 ```
 
@@ -271,13 +298,15 @@ PG_PASSWORD=secret
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `HTTP_PORT` | 8080 | HTTP listener port |
-| `HTTPS_PORT` | - | HTTPS listener port (enables HTTPS) |
+| `HTTPS_PORT` | - | HTTPS listener port (enables HTTPS with TLS 1.2+) |
 | `TLS_CERT_PATH` | - | Path to TLS certificate |
 | `TLS_KEY_PATH` | - | Path to TLS private key |
 | `HTTPS_ONLY` | false | Disable HTTP when HTTPS enabled |
-| `UDP_PORT` | - | UDP tracker port (enables UDP) |
+| `UDP_PORT` | - | UDP tracker port (enables UDP, no auth support) |
+| `UDP_CONNECTION_TIMEOUT` | 120 | UDP connection ID validity (seconds) |
 | `ADMIN_TOKEN` | - | Admin API authentication token |
-| `CORS_ORIGINS` | * | CORS origins (comma-separated or "*") |
+| `ADMIN_API_IP_WHITELIST` | - | Comma-separated IPs allowed to access admin API |
+| `CORS_ORIGINS` | - | CORS origins (comma-separated, "*", or empty for none) |
 | `DATABASE_URL` | - | PostgreSQL connection URL |
 | `DATABASE_ADAPTER` | sqlite | `sqlite` or `postgresql` |
 | `DATABASE_PATH` | /var/lib/b1tpoti0n/tracker.db | SQLite database path |
@@ -288,6 +317,7 @@ PG_PASSWORD=secret
 | `PG_PASSWORD` | - | PostgreSQL password |
 | `POOL_SIZE` | 10/20 | Database connection pool size |
 | `REDIS_URL` | redis://localhost:6379 | Redis connection URL |
+| `CLUSTER_ENABLED` | false | Enable Horde clustering |
 
 ---
 
@@ -428,6 +458,7 @@ GET    /admin/users              # List all users
 GET    /admin/users/search?q=xxx # Search users by passkey
 GET    /admin/users/passkey/:pk  # Get user by exact passkey
 GET    /admin/users/:id          # Get user by ID
+GET    /admin/users/:id/peers    # Get user's currently active peers (seeding/leeching)
 POST   /admin/users              # Create user (optional: {"passkey": "..."})
 DELETE /admin/users/:id          # Delete user
 PUT    /admin/users/:id/stats    # Update uploaded/downloaded
@@ -619,6 +650,17 @@ EXPOSE 8080 8081/udp
 CMD ["bin/b1tpoti0n", "start"]
 ```
 
+### TLS Security
+
+When HTTPS is enabled, b1tpoti0n automatically enforces strong TLS settings:
+
+- **TLS 1.2 and TLS 1.3 only** - Older versions (TLS 1.0, 1.1) are disabled
+- **Forward secrecy** - Only ECDHE key exchange ciphers are allowed
+- **Server cipher preference** - Server chooses the cipher, not the client
+- **Session tickets disabled** - Prevents session resumption attacks
+
+No configuration needed - these settings are applied automatically when you set `https_port`.
+
 ### Reverse Proxy (nginx)
 
 ```nginx
@@ -647,22 +689,22 @@ server {
 
 ### Monitoring
 
-Prometheus metrics available at `GET /metrics`.
+Prometheus metrics available at `GET /metrics` (can be protected via `metrics_endpoint` config).
 
 Key metrics:
-- `b1tpoti0n_announces_total` - Total announce requests
-- `b1tpoti0n_announces_by_event` - Announces by event type (started, completed, stopped, update)
-- `b1tpoti0n_scrapes_total` - Total scrape requests
-- `b1tpoti0n_errors_total` - Total errors
-- `b1tpoti0n_errors_by_type` - Errors by type
-- `b1tpoti0n_announce_duration_milliseconds` - Announce latency (summary)
-- `b1tpoti0n_scrape_duration_milliseconds` - Scrape latency (summary)
-- `b1tpoti0n_users_total` - Registered users (gauge)
-- `b1tpoti0n_torrents_total` - Registered torrents (gauge)
-- `b1tpoti0n_swarms_active` - Active swarm workers (gauge)
-- `b1tpoti0n_peers_active` - Active peers in memory (gauge)
-- `b1tpoti0n_passkeys_cached` - Cached passkeys (gauge)
-- `b1tpoti0n_banned_ips` - Banned IPs (gauge)
+- `tracker_announces_total` - Total announce requests
+- `tracker_announces_by_event` - Announces by event type (started, completed, stopped, update)
+- `tracker_scrapes_total` - Total scrape requests
+- `tracker_errors_total` - Total errors
+- `tracker_errors_by_type` - Errors by type
+- `tracker_announce_duration_milliseconds` - Announce latency (summary)
+- `tracker_scrape_duration_milliseconds` - Scrape latency (summary)
+- `tracker_users_total` - Registered users (gauge)
+- `tracker_torrents_total` - Registered torrents (gauge)
+- `tracker_swarms_active` - Active swarm workers (gauge)
+- `tracker_peers_active` - Active peers in memory (gauge)
+- `tracker_passkeys_cached` - Cached passkeys (gauge)
+- `tracker_banned_ips` - Banned IPs (gauge)
 
 ### Multi-Node Deployment
 
@@ -871,4 +913,7 @@ For UDP: Use IP hash or round-robin. UDP announces from the same client should i
 
 ## Admin UI
 
-A standalone admin interface is included at `admin-ui/index.html`. See `admin-ui/README.md` for usage.
+A standalone admin interface is included in the `docs/` directory.
+You may want to implement your own.
+
+**[Live Demo](https://gmonarque.github.io/b1tpoti0n/)** — UI preview with mock data

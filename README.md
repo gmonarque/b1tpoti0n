@@ -28,20 +28,22 @@ Private BitTorrent tracker in Elixir.
 
 ## Features
 
-- HTTP/HTTPS tracker (BEP 3)
+- HTTP/HTTPS tracker (BEP 3) with TLS 1.2+ and secure cipher suites
 - UDP tracker (BEP 15) (public mode only, no user auth)
 - Passkey authentication
 - User ratio tracking
 - Client whitelist
-- IP banning
-- Rate limiting
+- IP banning (with CIDR support)
+- Rate limiting (token bucket per IP)
 - Hit-and-Run detection
 - Bonus points system
-- Freeleech and multipliers
+- Freeleech and multipliers (with abuse prevention caps)
 - Prometheus metrics
 - SQLite or PostgreSQL database
 - In-memory or Redis peer storage
-- Optional clustering (Horde + Redis)
+- Clustering with Horde + libcluster
+- Admin API with IP whitelist protection
+- Real-time WebSocket stats
 
 ## Quick Start
 
@@ -75,13 +77,16 @@ See `config/config.exs` for all options.
 Key settings:
 - `http_port` / `https_port` / `udp_port` - Network ports
 - `admin_token` - Admin API authentication (required in production)
+- `admin_api_ip_whitelist` - Restrict admin API to specific IPs
+- `trust_x_forwarded_for` - Enable when behind a trusted reverse proxy
 - `peer_storage` - `:memory` (default) or `:redis` for clustering
 - `hnr` - Hit-and-Run detection settings
 - `bonus_points` - Bonus points system settings
-- `enforce_torrent_whitelist` - Require torrent pre-registration.
+- `enforce_torrent_whitelist` - Require torrent pre-registration
+- `stats_endpoint` / `metrics_endpoint` - Protection for monitoring endpoints
 
 For production, set environment variables (see DOCUMENTATION.md):
-- `ADMIN_TOKEN`, `HTTP_PORT`, `UDP_PORT`, `DATABASE_URL`, etc.
+- `ADMIN_TOKEN`, `HTTP_PORT`, `UDP_PORT`, `DATABASE_URL`, `ADMIN_API_IP_WHITELIST`, etc.
 
 ## Documentation
 
