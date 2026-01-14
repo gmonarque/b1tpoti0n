@@ -244,17 +244,49 @@ defmodule B1tpoti0n.Network.PeerVerifier do
   end
 
   defp verify_peer(ip, port) do
-    timeout = get_connect_timeout()
+    # Block verification of private/reserved IP ranges to prevent SSRF
+    if is_private_ip?(ip) do
+      Logger.debug("Skipping verification of private IP: #{:inet.ntoa(ip)}")
+      false
+    else
+      timeout = get_connect_timeout()
 
-    case :gen_tcp.connect(ip, port, [:binary, active: false], timeout) do
-      {:ok, socket} ->
-        :gen_tcp.close(socket)
-        true
+      case :gen_tcp.connect(ip, port, [:binary, active: false], timeout) do
+        {:ok, socket} ->
+          :gen_tcp.close(socket)
+          true
 
-      {:error, _reason} ->
-        false
+        {:error, _reason} ->
+          false
+      end
     end
   end
+
+  # Check if IP is in private/reserved ranges (RFC 1918, loopback, link-local, etc.)
+  # Loopback
+  defp is_private_ip?({127, _, _, _}), do: true
+  # Class A private
+  defp is_private_ip?({10, _, _, _}), do: true
+  # Class B private
+  defp is_private_ip?({172, b, _, _}) when b >= 16 and b <= 31, do: true
+  # Class C private
+  defp is_private_ip?({192, 168, _, _}), do: true
+  # Link-local
+  defp is_private_ip?({169, 254, _, _}), do: true
+  # Current network
+  defp is_private_ip?({0, _, _, _}), do: true
+  # Broadcast
+  defp is_private_ip?({255, 255, 255, 255}), do: true
+  # IPv6 private ranges
+  # ::1 loopback
+  defp is_private_ip?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
+  # Link-local
+  defp is_private_ip?({0xFE80, _, _, _, _, _, _, _}), do: true
+  # Unique local (fc00::/7)
+  defp is_private_ip?({0xFC00, _, _, _, _, _, _, _}), do: true
+  # Unique local (fc00::/7)
+  defp is_private_ip?({0xFD00, _, _, _, _, _, _, _}), do: true
+  defp is_private_ip?(_), do: false
 
   defp schedule_cleanup do
     Process.send_after(self(), :cleanup, @cleanup_interval_ms)
