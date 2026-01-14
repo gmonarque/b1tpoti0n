@@ -18,6 +18,7 @@ defmodule B1tpoti0n.Network.HttpRouter do
   alias B1tpoti0n.Core.Bencode
 
   plug(Plug.Logger)
+  plug(:add_server_header)
   plug(:match)
   plug(:dispatch)
 
@@ -52,14 +53,16 @@ defmodule B1tpoti0n.Network.HttpRouter do
           |> send_resp(200, Bencode.encode_error(reason))
       end
     else
-      {:banned, reason} ->
+      {:banned, _reason} ->
         B1tpoti0n.Metrics.error(:banned)
+
         conn
         |> put_resp_content_type("text/plain")
-        |> send_resp(200, Bencode.encode_error("Banned: #{reason}"))
+        |> send_resp(200, Bencode.encode_error("Not authorized"))
 
       {:error, :rate_limited, retry_after_ms} ->
         B1tpoti0n.Metrics.error(:rate_limited)
+
         conn
         |> put_resp_content_type("text/plain")
         |> put_resp_header("retry-after", to_string(div(retry_after_ms, 1000) + 1))
@@ -96,14 +99,16 @@ defmodule B1tpoti0n.Network.HttpRouter do
           |> send_resp(200, Bencode.encode_error(reason))
       end
     else
-      {:banned, reason} ->
+      {:banned, _reason} ->
         B1tpoti0n.Metrics.error(:banned)
+
         conn
         |> put_resp_content_type("text/plain")
-        |> send_resp(200, Bencode.encode_error("Banned: #{reason}"))
+        |> send_resp(200, Bencode.encode_error("Not authorized"))
 
       {:error, :rate_limited, retry_after_ms} ->
         B1tpoti0n.Metrics.error(:rate_limited)
+
         conn
         |> put_resp_content_type("text/plain")
         |> put_resp_header("retry-after", to_string(div(retry_after_ms, 1000) + 1))
@@ -120,23 +125,44 @@ defmodule B1tpoti0n.Network.HttpRouter do
 
   # Stats endpoint (internal)
   get "/stats" do
-    stats = %{
-      ets: B1tpoti0n.Store.Manager.stats(),
-      swarms: B1tpoti0n.Swarm.count_workers(),
-      torrents: length(B1tpoti0n.Swarm.list_torrents()),
-      rate_limiter: RateLimiter.stats()
-    }
+    case check_monitoring_access(conn, :stats_endpoint) do
+      :ok ->
+        cache_stats = B1tpoti0n.Store.Manager.stats()
 
-    conn
-    |> put_resp_content_type("application/json")
-    |> send_resp(200, Jason.encode!(stats))
+        stats = %{
+          cache: %{
+            users: cache_stats.passkeys,
+            blocked: cache_stats.banned_ips
+          },
+          active_transfers: B1tpoti0n.Swarm.count_workers(),
+          total_items: length(B1tpoti0n.Swarm.list_torrents()),
+          throttle: RateLimiter.stats()
+        }
+
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(200, Jason.encode!(stats))
+
+      {:error, _reason} ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(404, Jason.encode!(%{error: "Not found"}))
+    end
   end
 
   # Prometheus metrics endpoint
   get "/metrics" do
-    conn
-    |> put_resp_content_type("text/plain; version=0.0.4")
-    |> send_resp(200, B1tpoti0n.Metrics.export_prometheus())
+    case check_monitoring_access(conn, :metrics_endpoint) do
+      :ok ->
+        conn
+        |> put_resp_content_type("text/plain; version=0.0.4")
+        |> send_resp(200, B1tpoti0n.Metrics.export_prometheus())
+
+      {:error, _reason} ->
+        conn
+        |> put_resp_content_type("text/plain")
+        |> send_resp(404, "Not found")
+    end
   end
 
   # Admin REST API
@@ -148,8 +174,14 @@ defmodule B1tpoti0n.Network.HttpRouter do
     query_params = URI.decode_query(conn.query_string || "")
     request_token = Map.get(query_params, "token")
 
-    # Authenticate WebSocket connection
-    if is_nil(admin_token) or admin_token == "" or request_token == admin_token do
+    # WebSocket requires authentication just like the REST admin API
+    authenticated =
+      admin_token != nil and
+        admin_token != "" and
+        request_token != nil and
+        Plug.Crypto.secure_compare(request_token, admin_token)
+
+    if authenticated do
       conn
       |> WebSockAdapter.upgrade(
         B1tpoti0n.Network.WebSocketHandler,
@@ -159,7 +191,7 @@ defmodule B1tpoti0n.Network.HttpRouter do
     else
       conn
       |> put_resp_content_type("application/json")
-      |> send_resp(401, Jason.encode!(%{error: "Unauthorized"}))
+      |> send_resp(404, Jason.encode!(%{error: "Not found"}))
     end
   end
 
@@ -171,6 +203,79 @@ defmodule B1tpoti0n.Network.HttpRouter do
   end
 
   # --- Private Helpers ---
+
+  # Configurable Server header to prevent fingerprinting
+  # Configure via: config :b1tpoti0n, server_header: "nginx/1.24.0"
+  # Set to nil or false to disable
+  defp add_server_header(conn, _opts) do
+    case Application.get_env(:b1tpoti0n, :server_header, "Tracker/1.0") do
+      nil -> conn
+      false -> conn
+      header when is_binary(header) -> Plug.Conn.put_resp_header(conn, "server", header)
+    end
+  end
+
+  defp check_monitoring_access(conn, config_key) do
+    config = Application.get_env(:b1tpoti0n, config_key, [])
+    enabled = Keyword.get(config, :enabled, true)
+    require_auth = Keyword.get(config, :require_auth, false)
+    ip_whitelist = Keyword.get(config, :ip_whitelist, [])
+
+    cond do
+      not enabled ->
+        {:error, :disabled}
+
+      ip_whitelist != [] and ip_in_whitelist?(conn, ip_whitelist) ->
+        :ok
+
+      require_auth ->
+        check_monitoring_auth(conn)
+
+      ip_whitelist == [] ->
+        :ok
+
+      true ->
+        {:error, :forbidden}
+    end
+  end
+
+  defp check_monitoring_auth(conn) do
+    admin_token = Application.get_env(:b1tpoti0n, :admin_token)
+
+    # Get token from header or query param
+    header_token =
+      case Plug.Conn.get_req_header(conn, "x-admin-token") do
+        [token | _] -> token
+        [] -> nil
+      end
+
+    query_token =
+      case conn.query_string do
+        "" -> nil
+        qs -> Map.get(URI.decode_query(qs), "token")
+      end
+
+    request_token = header_token || query_token
+
+    cond do
+      is_nil(admin_token) or admin_token == "" ->
+        {:error, :unauthorized}
+
+      is_nil(request_token) ->
+        {:error, :unauthorized}
+
+      Plug.Crypto.secure_compare(request_token, admin_token) ->
+        :ok
+
+      true ->
+        {:error, :unauthorized}
+    end
+  end
+
+  defp ip_in_whitelist?(conn, whitelist) do
+    client_ip = get_client_ip_string(conn)
+    client_ip in whitelist
+  end
 
   # Parse query string with proper handling of binary params (info_hash, peer_id)
   # URI.decode doesn't work for non-UTF8 binary, so we use custom percent decoding
@@ -216,33 +321,45 @@ defmodule B1tpoti0n.Network.HttpRouter do
   end
 
   defp get_remote_ip(conn) do
-    # Check for X-Forwarded-For header (if behind proxy)
-    case Plug.Conn.get_req_header(conn, "x-forwarded-for") do
-      [forwarded | _] ->
-        forwarded
-        |> String.split(",")
-        |> List.first()
-        |> String.trim()
-        |> parse_ip()
+    trust_xff = Application.get_env(:b1tpoti0n, :trust_x_forwarded_for, false)
 
-      [] ->
-        conn.remote_ip
+    if trust_xff do
+      case Plug.Conn.get_req_header(conn, "x-forwarded-for") do
+        [forwarded | _] ->
+          forwarded
+          |> String.split(",")
+          |> List.first()
+          |> String.trim()
+          |> parse_ip()
+
+        [] ->
+          conn.remote_ip
+      end
+    else
+      conn.remote_ip
     end
   end
 
   defp get_client_ip_string(conn) do
-    # Get client IP as string for rate limiting
-    case Plug.Conn.get_req_header(conn, "x-forwarded-for") do
-      [forwarded | _] ->
-        forwarded
-        |> String.split(",")
-        |> List.first()
-        |> String.trim()
+    trust_xff = Application.get_env(:b1tpoti0n, :trust_x_forwarded_for, false)
 
-      [] ->
-        conn.remote_ip
-        |> :inet.ntoa()
-        |> to_string()
+    if trust_xff do
+      case Plug.Conn.get_req_header(conn, "x-forwarded-for") do
+        [forwarded | _] ->
+          forwarded
+          |> String.split(",")
+          |> List.first()
+          |> String.trim()
+
+        [] ->
+          conn.remote_ip
+          |> :inet.ntoa()
+          |> to_string()
+      end
+    else
+      conn.remote_ip
+      |> :inet.ntoa()
+      |> to_string()
     end
   end
 
