@@ -45,11 +45,27 @@ defmodule B1tpoti0n.Persistence.Schemas.Torrent do
   @doc false
   def changeset(torrent, attrs) do
     torrent
-    |> cast(attrs, [:info_hash, :seeders, :leechers, :completed, :freeleech, :freeleech_until, :upload_multiplier, :download_multiplier])
+    |> cast(attrs, [
+      :info_hash,
+      :seeders,
+      :leechers,
+      :completed,
+      :freeleech,
+      :freeleech_until,
+      :upload_multiplier,
+      :download_multiplier
+    ])
     |> validate_required([:info_hash])
     |> validate_info_hash_size()
-    |> validate_number(:upload_multiplier, greater_than_or_equal_to: 0.0)
-    |> validate_number(:download_multiplier, greater_than_or_equal_to: 0.0)
+    # Cap multipliers to prevent abuse (max 10x seems reasonable)
+    |> validate_number(:upload_multiplier,
+      greater_than_or_equal_to: 0.0,
+      less_than_or_equal_to: 10.0
+    )
+    |> validate_number(:download_multiplier,
+      greater_than_or_equal_to: 0.0,
+      less_than_or_equal_to: 10.0
+    )
     |> unique_constraint(:info_hash)
   end
 
