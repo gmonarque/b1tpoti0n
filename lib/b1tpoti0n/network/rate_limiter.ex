@@ -37,6 +37,14 @@ defmodule B1tpoti0n.Network.RateLimiter do
   """
   @spec check(String.t(), atom()) :: :ok | {:error, :rate_limited, non_neg_integer()}
   def check(ip, limit_type) do
+    if rate_limiting_enabled?() do
+      do_check(ip, limit_type)
+    else
+      :ok
+    end
+  end
+
+  defp do_check(ip, limit_type) do
     if whitelisted?(ip) do
       :ok
     else
@@ -191,5 +199,9 @@ defmodule B1tpoti0n.Network.RateLimiter do
   defp whitelisted?(ip) do
     whitelist = Application.get_env(:b1tpoti0n, :rate_limit_whitelist, ["127.0.0.1", "::1"])
     ip in whitelist
+  end
+
+  defp rate_limiting_enabled? do
+    Application.get_env(:b1tpoti0n, :rate_limiting_enabled, true)
   end
 end

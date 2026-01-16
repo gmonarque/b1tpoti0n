@@ -29,6 +29,7 @@ defmodule B1tpoti0n.Network.PeerVerifier do
   @cache_ttl_seconds 3600
   @cleanup_interval_ms 60_000
   @max_concurrent 50
+  @rate_limit_window_ms :timer.minutes(1)
 
   # --- Client API ---
 
@@ -116,7 +117,8 @@ defmodule B1tpoti0n.Network.PeerVerifier do
       pending: :queue.new(),
       in_progress: MapSet.new(),
       verified_count: 0,
-      failed_count: 0
+      failed_count: 0,
+      rate_queue: :queue.new()
     }
 
     {:ok, state}
@@ -135,13 +137,19 @@ defmodule B1tpoti0n.Network.PeerVerifier do
         {:noreply, state}
 
       true ->
-        # Add to pending queue
-        new_pending = :queue.in({ip, port}, state.pending)
-        state = %{state | pending: new_pending}
+        {state, limited?} = enforce_rate_limit(state)
 
-        # Process queue
-        state = process_pending(state)
-        {:noreply, state}
+        if limited? do
+          {:noreply, state}
+        else
+          # Add to pending queue
+          new_pending = :queue.in({ip, port}, state.pending)
+          state = %{state | pending: new_pending}
+
+          # Process queue
+          state = process_pending(state)
+          {:noreply, state}
+        end
     end
   end
 
@@ -240,6 +248,53 @@ defmodule B1tpoti0n.Network.PeerVerifier do
       end
     else
       state
+    end
+  end
+
+  defp enforce_rate_limit(state) do
+    case get_rate_limit() do
+      :disabled ->
+        {state, false}
+
+      limit ->
+        {pruned_queue, count} = prune_rate_queue(state.rate_queue)
+
+        if count >= limit do
+          {%{state | rate_queue: pruned_queue}, true}
+        else
+          new_queue = :queue.in(System.monotonic_time(:millisecond), pruned_queue)
+          {%{state | rate_queue: new_queue}, false}
+        end
+    end
+  end
+
+  defp prune_rate_queue(queue) do
+    now = System.monotonic_time(:millisecond)
+    window_start = now - @rate_limit_window_ms
+    prune_rate_queue(queue, window_start)
+  end
+
+  defp prune_rate_queue(queue, window_start) do
+    case :queue.out(queue) do
+      {{:value, timestamp}, rest} when timestamp < window_start ->
+        prune_rate_queue(rest, window_start)
+
+      {{:value, _timestamp}, _rest} ->
+        {queue, :queue.len(queue)}
+
+      {:empty, _} ->
+        {queue, 0}
+    end
+  end
+
+  defp get_rate_limit do
+    config = Application.get_env(:b1tpoti0n, :peer_verification, [])
+    case Keyword.get(config, :rate_limit, 100) do
+      nil -> :disabled
+      0 -> :disabled
+      :infinity -> :disabled
+      limit when is_integer(limit) and limit > 0 -> limit
+      _ -> :disabled
     end
   end
 

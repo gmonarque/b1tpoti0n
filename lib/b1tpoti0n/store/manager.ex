@@ -16,6 +16,8 @@ defmodule B1tpoti0n.Store.Manager do
   @passkey_table :b1tpoti0n_passkeys
   @whitelist_table :b1tpoti0n_whitelist
   @banned_ips_table :b1tpoti0n_banned_ips
+  @banned_ips_exact_table :b1tpoti0n_banned_ips_exact
+  @banned_ips_cidr_table :b1tpoti0n_banned_ips_cidr
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -54,24 +56,12 @@ defmodule B1tpoti0n.Store.Manager do
   def check_banned(ip) do
     now = DateTime.utc_now()
 
-    case :ets.tab2list(@banned_ips_table) do
-      [] ->
-        :ok
-
-      bans ->
-        matching_ban =
-          Enum.find(bans, fn {_id, banned_ip_struct} ->
-            not_expired =
-              is_nil(banned_ip_struct.expires_at) or
-                DateTime.compare(banned_ip_struct.expires_at, now) == :gt
-
-            not_expired and BannedIp.matches?(banned_ip_struct, ip)
-          end)
-
-        case matching_ban do
-          nil -> :ok
-          {_id, ban} -> {:banned, ban.reason}
-        end
+    with {:ok, client_tuple} <- normalize_ip_tuple(ip),
+         :ok <- check_exact_ban(client_tuple, now) do
+      check_cidr_ban(client_tuple, now)
+    else
+      {:banned, reason} -> {:banned, reason}
+      :error -> :ok
     end
   end
 
@@ -128,6 +118,20 @@ defmodule B1tpoti0n.Store.Manager do
     ])
 
     :ets.new(@banned_ips_table, [
+      :set,
+      :named_table,
+      :protected,
+      read_concurrency: true
+    ])
+
+    :ets.new(@banned_ips_exact_table, [
+      :set,
+      :named_table,
+      :protected,
+      read_concurrency: true
+    ])
+
+    :ets.new(@banned_ips_cidr_table, [
       :set,
       :named_table,
       :protected,
@@ -205,10 +209,90 @@ defmodule B1tpoti0n.Store.Manager do
       entries = Enum.map(bans, fn ban -> {ban.id, ban} end)
       :ets.delete_all_objects(@banned_ips_table)
       :ets.insert(@banned_ips_table, entries)
+      hydrate_banned_indexes(bans)
       Logger.info("Loaded #{length(entries)} banned IPs into ETS")
     rescue
       e ->
         Logger.warning("Failed to hydrate banned IPs: #{inspect(e)}")
     end
+  end
+
+  defp hydrate_banned_indexes(bans) do
+    :ets.delete_all_objects(@banned_ips_exact_table)
+    :ets.delete_all_objects(@banned_ips_cidr_table)
+
+    Enum.each(bans, fn ban ->
+      case parse_ban_ip(ban.ip) do
+        {:exact, ip_tuple} ->
+          :ets.insert(@banned_ips_exact_table, {ip_tuple, ban})
+
+        {:cidr, network, prefix_len} ->
+          :ets.insert(@banned_ips_cidr_table, {ban.id, network, prefix_len, ban})
+
+        :error ->
+          :ok
+      end
+    end)
+  end
+
+  defp parse_ban_ip(ip) do
+    if String.contains?(ip, "/") do
+      case BannedIp.parse_cidr(ip) do
+        {:ok, {network, prefix_len}} -> {:cidr, network, prefix_len}
+        :error -> :error
+      end
+    else
+      case :inet.parse_address(String.to_charlist(ip)) do
+        {:ok, ip_tuple} -> {:exact, ip_tuple}
+        {:error, _} -> :error
+      end
+    end
+  end
+
+  defp normalize_ip_tuple(ip) when is_tuple(ip), do: {:ok, ip}
+
+  defp normalize_ip_tuple(ip) when is_binary(ip) do
+    case :inet.parse_address(String.to_charlist(ip)) do
+      {:ok, ip_tuple} -> {:ok, ip_tuple}
+      {:error, _} -> :error
+    end
+  end
+
+  defp normalize_ip_tuple(_), do: :error
+
+  defp check_exact_ban(client_tuple, now) do
+    case :ets.lookup(@banned_ips_exact_table, client_tuple) do
+      [{^client_tuple, ban}] ->
+        if active_ban?(ban, now) do
+          {:banned, ban.reason}
+        else
+          :ok
+        end
+
+      [] ->
+        :ok
+    end
+  end
+
+  defp check_cidr_ban(client_tuple, now) do
+    case :ets.tab2list(@banned_ips_cidr_table) do
+      [] ->
+        :ok
+
+      entries ->
+        matching =
+          Enum.find(entries, fn {_id, network, prefix_len, ban} ->
+            active_ban?(ban, now) and BannedIp.ip_in_cidr?(client_tuple, network, prefix_len)
+          end)
+
+        case matching do
+          nil -> :ok
+          {_id, _network, _prefix_len, ban} -> {:banned, ban.reason}
+        end
+    end
+  end
+
+  defp active_ban?(ban, now) do
+    is_nil(ban.expires_at) or DateTime.compare(ban.expires_at, now) == :gt
   end
 end

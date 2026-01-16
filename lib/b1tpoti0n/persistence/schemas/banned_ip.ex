@@ -88,7 +88,11 @@ defmodule B1tpoti0n.Persistence.Schemas.BannedIp do
     end
   end
 
-  defp parse_cidr(cidr_string) do
+  @doc """
+  Parse a CIDR string into a network tuple and prefix length.
+  """
+  @spec parse_cidr(String.t()) :: {:ok, {tuple(), non_neg_integer()}} | :error
+  def parse_cidr(cidr_string) do
     case String.split(cidr_string, "/") do
       [ip_str, prefix_str] ->
         with {:ok, ip_tuple} <- :inet.parse_address(String.to_charlist(ip_str)),
@@ -112,7 +116,11 @@ defmodule B1tpoti0n.Persistence.Schemas.BannedIp do
     prefix_len >= 0 and prefix_len <= 128
   end
 
-  defp ip_in_cidr?(client_ip, network_ip, prefix_len)
+  @doc """
+  Check if a client IP tuple is within a CIDR range.
+  """
+  @spec ip_in_cidr?(tuple(), tuple(), non_neg_integer()) :: boolean()
+  def ip_in_cidr?(client_ip, network_ip, prefix_len)
        when tuple_size(client_ip) == 4 and tuple_size(network_ip) == 4 do
     # IPv4: Convert to 32-bit integers and compare masked values
     client_int = ip4_to_int(client_ip)
@@ -121,7 +129,7 @@ defmodule B1tpoti0n.Persistence.Schemas.BannedIp do
     (client_int &&& mask) == (network_int &&& mask)
   end
 
-  defp ip_in_cidr?(client_ip, network_ip, prefix_len)
+  def ip_in_cidr?(client_ip, network_ip, prefix_len)
        when tuple_size(client_ip) == 8 and tuple_size(network_ip) == 8 do
     # IPv6: Convert to 128-bit integers and compare masked values
     client_int = ip6_to_int(client_ip)
@@ -130,7 +138,7 @@ defmodule B1tpoti0n.Persistence.Schemas.BannedIp do
     (client_int &&& mask) == (network_int &&& mask)
   end
 
-  defp ip_in_cidr?(_, _, _), do: false
+  def ip_in_cidr?(_, _, _), do: false
 
   defp ip4_to_int({a, b, c, d}) do
     bsl(a, 24) + bsl(b, 16) + bsl(c, 8) + d

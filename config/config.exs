@@ -110,7 +110,9 @@ config :b1tpoti0n,
     # How long to cache results (seconds)
     cache_ttl: 3600,
     # Maximum concurrent verification attempts
-    max_concurrent: 50
+    max_concurrent: 50,
+    # Maximum verification requests per minute
+    rate_limit: 100
   ],
   # /stats endpoint configuration
   # Exposes internal statistics - should be protected in production
